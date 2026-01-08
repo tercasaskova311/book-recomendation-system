@@ -1,7 +1,7 @@
 import pandas as pd
 import json
 from tqdm import tqdm
-from fetching_data import GoogleBooksClient
+from src.fetching_data import GoogleBooksClient
 
 # ========== CONFIGURATION ==========
 INPUT_FILE = 'data/Books.csv'
