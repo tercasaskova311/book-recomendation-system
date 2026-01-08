@@ -12,7 +12,7 @@ from pyspark.ml.feature import (
     OneHotEncoder,
     VectorAssembler
 )
-
+import re
 from pyspark.ml import Pipeline
 import os
 from dotenv import load_dotenv
@@ -99,22 +99,32 @@ def process_descriptions(df): #book descriptions into TF-IDF vectors - Filter bo
     return df_tfidf.select("isbn", "tfidf_features")
 
 # ======== FEATURE 2: CATEGORY ENCODING ============================================
-def process_categories(df): # One-hot encode book categories    
-    df_cat = df.withColumn(
-        "categories_clean",
-        when(
-            (col("categories").isNotNull()) & (size(col("categories")) > 0),
-            col("categories")
-        ).otherwise(array(lit("Uncategorized")))  # Default for empty
-    )
+def process_categories(df):
+    """One-hot encode book categories"""    
+    # take df and create new tbale df_cat with new col => Clean empty/null categories
+    df_cat = df.withColumn("categories_clean", when((col("categories").isNotNull()) & (size(col("categories")) > 0), col("categories")).otherwise(array(lit("Uncategorized"))))
     
-    df_cat = df_cat.withColumn(
-        "categories_str",
-        lower(array_join(col("categories_clean"), ","))
-    )
-    # Step 5: Create binary features
-    # Clean category names for column names
-    for category in categories:
+    #convert to lowercase string
+    df_cat = df_cat.withColumn("categories_str", lower(array_join(col("categories_clean"), ",")))
+    
+    #Find top N categories by counting    
+    top_categories_df = df_cat \
+        .withColumn("category", explode(split(col("categories_str"), ","))) \
+        .withColumn("category", trim(col("category"))) \
+        .filter(
+            (col("category") != "") & 
+            (col("category") != "uncategorized")
+        ) \
+        .groupBy("category") \
+        .count() \
+        .orderBy(col("count").desc()) \
+        .limit(CATEGORY_TOP_N)
+    
+    top_categories = [] 
+    for row in top_categories_df.collect():
+        top_categories.append(row.category)    
+    
+    for category in top_categories:  # ← Loop through Python list, not Spark column!
         safe_name = (category
             .replace(" ", "_")
             .replace("-", "_")
@@ -124,29 +134,32 @@ def process_categories(df): # One-hot encode book categories
             .replace(")", "")
             .replace("'", "")
         )
-        
-        safe_name = regexp_replace(safe_name, "[^a-z0-9_]", "")
-        
-        df_cat = df_cat.withColumn(
-            f"cat_{safe_name}",
-            when(col("categories_str").contains(category), 1.0).otherwise(0.0)
+        safe_name = re.sub(r'[^a-z0-9_]', '', safe_name)
+        df_cat = df_cat.withColumn(f"cat_{safe_name}", when(col("categories_str").contains(category), 1.0).otherwise(0.0))
+    
+    # Step 5: Create list of column names
+    cat_cols = []
+    for category in top_categories:
+        safe_name = (category
+            .replace(" ", "_")
+            .replace("-", "_")
+            .replace("&", "and")
+            .replace(",", "")
+            .replace("(", "")
+            .replace(")", "")
+            .replace("'", "")
         )
-    
-    cat_cols = [
-        f"cat_{category.replace(' ', '_').replace('-', '_').replace('&', 'and').replace(',', '').replace('(', '').replace(')', '').replace('\', '')}"
-        for category in categories
-    ]
-    
-    # Clean column names (in case there are still issues)
-    cat_cols = [regexp_replace(col, "[^a-z0-9_]", "") for col in cat_cols]
-    
+        safe_name = re.sub(r'[^a-z0-9_]', '', safe_name)
+        cat_cols.append(f"cat_{safe_name}")
+        
     assembler = VectorAssembler(
         inputCols=cat_cols,
         outputCol="category_features",
-        handleInvalid="keep"  # Keep rows with null values
+        handleInvalid="keep"
     )
     
-    df_cat_final = assembler.transform(df_cat)    
+    df_cat_final = assembler.transform(df_cat)
+    print("✅ Category encoding complete\n")
     return df_cat_final.select("isbn", "category_features")
 
 # ======== FEATURE 3: NORMALIZE PAGE COUNT ============================================
@@ -164,7 +177,7 @@ def normalize_page_count(df):
     )
     
     df_pages = assembler.transform(df_pages)
-    
+
     scaler = MinMaxScaler(
         inputCol="page_count_vec",
         outputCol="page_count_normalized"
