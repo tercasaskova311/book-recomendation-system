@@ -13,8 +13,10 @@ books_ratings_users = pd.merge(
 
 books = books['ISBN'].dropna()
 
-print(books.head())
-print(ratings.head())
-print(users.head())
+book2 = pd.read_csv('data/books_enriched.csv')
+books_cat_type = book2['categories']
+books_cat_type.to_csv('categories.csv')
+
+print(books_cat_type)
 
 

@@ -1,7 +1,7 @@
 import pandas as pd
 import json
 from tqdm import tqdm
-from src.fetching_data import GoogleBooksClient
+from fetching_data import GoogleBooksClient
 
 # ========== CONFIGURATION ==========
 INPUT_FILE = 'data/Books.csv'
@@ -43,7 +43,6 @@ for idx, row in tqdm(df.iterrows(), total=len(df), desc="Enriching"):
         # Add Google Books data
         book.update({
             'title': google_data['title'],
-            'subtitle': google_data['subtitle'],
             'description': google_data['description'],
             'authors': json.dumps(google_data['authors']),
             'categories': json.dumps(google_data['categories']),
@@ -89,7 +88,5 @@ enriched_books = result_df[result_df['enriched'] == 'Yes']
 if len(enriched_books) > 0:
     with_desc = enriched_books['description'].notna().sum()
     with_categories = enriched_books['categories'].notna().sum()
-    with_ratings = enriched_books['average_rating'].notna().sum()
     print(f"   Books with descriptions: {with_desc} ({with_desc/len(enriched_books)*100:.1f}%)")
     print(f"   Books with categories: {with_categories} ({with_categories/len(enriched_books)*100:.1f}%)")
-    print(f"   Books with ratings: {with_ratings} ({with_ratings/len(enriched_books)*100:.1f}%)")

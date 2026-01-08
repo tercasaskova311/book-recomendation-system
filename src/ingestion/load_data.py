@@ -4,20 +4,26 @@ import pandas as pd
 import json
 from tqdm import tqdm
 import os
-from dotenv import load_dotenv
+from dotenv import load_dotenv 
+import sys
 load_dotenv()
 
 # =========== CONFIG =================================================
 
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from src.database.config import DB_CONFIG
+DB_CONFIG = {
+    'host': os.getenv('DB_HOST', 'localhost'),
+    'port': os.getenv('DB_PORT', '5060'),  # ← Changed from 5432
+    'database': os.getenv('DB_NAME', 'book_recommendations'),
+    'user': os.getenv('DB_USER', 'terezasaskova'),
+    'password': os.getenv('DB_PASSWORD', '')
+}
+
 def get_connection():
-    return psycopg2.connect(**DB_CONFIG)
+    config = DB_CONFIG.copy()
+    return psycopg2.connect(**config)
 
 #============== CONNECTION ========================================================
 
-def get_connection():
-    return psycopg2.connect(**DB_CONFIG)
 
 def test_connection():
     try:
@@ -82,7 +88,10 @@ def load_books(csv_path):
     records = []
     for _, row in df.iterrows():
         
-    records.append((
+        authors = json.loads(row['authors']) if pd.notna(row['authors']) else []
+        categories = json.loads(row['categories']) if pd.notna(row['categories']) else []
+        
+        records.append((
             row['isbn'],
             row.get('kaggle_title'),
             row.get('kaggle_author'),
@@ -90,8 +99,8 @@ def load_books(csv_path):
             row.get('kaggle_publisher'),
             row['title'],
             row['description'] if pd.notna(row['description']) else None,
-            authors,  # ← Parsed from JSON
-            categories,  # ← Parsed from JSON
+            authors,       # ← Parsed from JSON string to Python list
+            categories,    # ← Parsed from JSON string to Python list
             row['publisher'] if pd.notna(row['publisher']) else None,
             row['published_date'] if pd.notna(row['published_date']) else None,
             int(row['page_count']) if pd.notna(row['page_count']) else None,
@@ -104,7 +113,7 @@ def load_books(csv_path):
         INSERT INTO books (
             isbn, kaggle_title, kaggle_author, kaggle_year, kaggle_publisher,
             title, description, authors, categories, publisher, published_date,
-            page_count, language, cover_url, enriched, data_source
+            page_count, language, enriched, data_source
         ) VALUES %s
         ON CONFLICT (isbn) DO UPDATE SET
             title = EXCLUDED.title,
