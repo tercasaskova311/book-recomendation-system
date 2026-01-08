@@ -11,13 +11,10 @@ books_ratings_users = pd.merge(
     how='outer'          
 )
 
+books = books['ISBN'].dropna()
 
-isbn_list = books['ISBN'].tolist()
-
-hardcover = pd.read_csv('data/books_enriched.csv')
-describtion = hardcover['description'].isna().sum()
-describtion_2 = hardcover['description'].count()
-print(describtion)
-print(describtion_2)
+print(books.head())
+print(ratings.head())
+print(users.head())
 
 
