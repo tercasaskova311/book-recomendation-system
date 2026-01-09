@@ -1,6 +1,5 @@
 import os
 from dotenv import load_dotenv
-
 load_dotenv()
 
 DB_HOST = os.getenv('DB_HOST', 'localhost')
@@ -37,7 +36,8 @@ SPARK_MASTER = "local[*]"       # Use all available cores
 # or
 # SPARK_MASTER = "local[4]"     # Use exactly 4 cores
 
-POSTGRES_JDBC_JAR = /User/terezasaskova/spark-jars/postgresql-42.7.1.jar #java driver file...
+POSTGRES_JDBC_JAR = "/Users/terezasaskova/spark-jars/postgresql-42.7.1.jar"
+#java driver file...
 
 
 # ============================================================
@@ -50,6 +50,10 @@ ALS_REG_PARAM = 0.01
 
 SIMILARITY_THRESHOLD = 0.1
 TOP_K_SIMILAR = 50
+
+TF_IDF_NUM_FEATURES = 2000
+MIN_DESCRIPTION_LENGTH = 50
+CATEGORY_TOP_N = 5
 
 # ============================================================
 # FILE PATHS

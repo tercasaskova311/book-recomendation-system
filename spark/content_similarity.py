@@ -1,22 +1,14 @@
 """
-Spark Feature Engineering Pipeline
-Transforms book data into ML-ready features for content-based recommendations
+content similarity feature extraction (Transforms book data into ML-ready features for content-based recommendations)
+n.pages, description, category, language => into one vector space
 """
 
-# ============================================================
-# STANDARD LIBRARY IMPORTS
-# ============================================================
+
 import os
 import sys
 import re
 import traceback
-
-# ============================================================
-# THIRD-PARTY IMPORTS
-# ============================================================
 from dotenv import load_dotenv
-
-# PySpark Core
 from pyspark.sql import SparkSession
 from pyspark.sql.functions import (
     col, 
@@ -24,20 +16,18 @@ from pyspark.sql.functions import (
     size, 
     lower, 
     array_join, 
-    lit,           # You'll need this for array(lit("Uncategorized"))
-    array,         # You'll need this too
+    lit,           
+    array,        
     length,
     regexp_replace,
     trim,
-    explode,       # Fixed typo: was "explore"
+    explode,       
     split,
     min,
     max,
-    substring      # For year extraction
+    substring      
 )
 from pyspark.sql.types import ArrayType, StringType, FloatType, DoubleType
-
-# PySpark ML
 from pyspark.ml.feature import (
     Tokenizer, 
     StopWordsRemover, 
@@ -50,10 +40,6 @@ from pyspark.ml.feature import (
 )
 from pyspark.ml import Pipeline
 
-# ============================================================
-# LOCAL IMPORTS
-# ============================================================
-# Add project root to path
 load_dotenv()
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
@@ -68,17 +54,24 @@ from config import (
     SPARK_MASTER,
     POSTGRES_JDBC_JAR
 )
+from delta import configure_spark_with_delta_pip
 
 # ============= SPARK SESSION ===============================================
 def create_spark_session(): #with postgresdriver ... 
-    return (SparkSession.builder 
+    builder = (
+        SparkSession.builder 
         .appName("BookRecommendation-conntent-similarity") 
         .config("spark.jars", POSTGRES_JDBC_JAR) 
+        .config("spark.driver.extraClassPath", POSTGRES_JDBC_JAR) \
+        .config("spark.executor.extraClassPath", POSTGRES_JDBC_JAR)
         .config("spark.driver.memory", SPARK_DRIVER_MEMORY)  
         .config("spark.executor.memory", SPARK_EXECUTOR_MEMORY)
-        .getOrCreate())
+        .config("spark.sql.extensions", "io.delta.sql.DeltaSparkSessionExtension")
+        .config("spark.sql.catalog.spark_catalog", "org.apache.spark.sql.delta.catalog.DeltaCatalog")
+    )
 
-#rn i have 4g driver memory & 4g for each executor - this should be enought
+    return configure_spark_with_delta_pip(builder).getOrCreate()
+
 # =========== DATA LOADING ============================================
 
 def load_books_from_postgres(spark): #Loading books from PostgreSQL
@@ -92,7 +85,7 @@ def load_books_from_postgres(spark): #Loading books from PostgreSQL
     print(f" Loaded {df.count()} books")    
     return df
 
-# ========= FEATURE 1: TF-IDF ON DESCRIPTIONS ===============================================
+# ========= DESCRIPTIONS ===============================================
 
 def process_descriptions(df): #book descriptions into TF-IDF vectors - Filter books with descriptions - Clean text - Tokenize - stop words - Compute TF-IDF    
     df_with_desc = df.filter(
@@ -135,7 +128,7 @@ def process_descriptions(df): #book descriptions into TF-IDF vectors - Filter bo
     print("TF-IDF processing complete")
     return df_tfidf.select("isbn", "tfidf_features")
 
-# ======== FEATURE 2: CATEGORY ENCODING ============================================
+# ======== CATEGORY ENCODING ============================================
 def process_categories(df):
     df_cat = df.withColumn("categories_clean", when((col("categories").isNotNull()) & (size(col("categories")) > 0), col("categories")).otherwise(array(lit("Uncategorized"))))    
     df_cat = df_cat.withColumn("categories_str", lower(array_join(col("categories_clean"), ",")))
@@ -169,7 +162,7 @@ def process_categories(df):
         )
         safe_name = re.sub(r'[^a-z0-9_]', '', safe_name)
         df_cat = df_cat.withColumn(f"cat_{safe_name}", when(col("categories_str").contains(category), 1.0).otherwise(0.0))
-    
+
     # Step 5: Create list of column names
     cat_cols = []
     for category in top_categories:
@@ -185,9 +178,9 @@ def process_categories(df):
         safe_name = re.sub(r'[^a-z0-9_]', '', safe_name)
         cat_cols.append(f"cat_{safe_name}")
     
-    return df.select("isbn", *cat_cols)
+    return df_cat.select("isbn", *cat_cols)
 
-# ======== FEATURE 3: NORMALIZE PAGE COUNT ============================================
+# ======== NORMALIZE PAGE COUNT ============================================
 def normalize_page_count(df):  
     df_pages = df.filter(
         (col("page_count").isNotNull()) & 
@@ -200,8 +193,9 @@ def normalize_page_count(df):
         max("page_count").alias("max_val")
     ).collect()[0]
 
-    min_val = stats["min_pages"]
-    max_val = stats["max_pages"]
+    min_val = stats["min_val"]
+    max_val = stats["max_val"]
+
 
     df_normalized = df_pages.withColumn(
         "page_count_normalized",
@@ -210,7 +204,7 @@ def normalize_page_count(df):
 
     return df_normalized.select("isbn", "page_count_normalized")
    
-# ========== FEATURE 5: ENCODE LANGUAGE =============================================
+# ========== ENCODE LANGUAGE =============================================
 
 def encode_language(df):
     
@@ -232,7 +226,7 @@ def encode_language(df):
     model = pipeline.fit(df_lang) #fit stringindexer = what lang exist + fit onehotencoder: how many cat?
     df_encoded = model.transform(df_lang) #add lang index column => convert indices to one-hot vector
     
-    return df_lang.select("isbn", "language_encoded") #select only language vector col
+    return df_encoded.select("isbn", "language_encoded") #select only language vector col
 
 # =================== COMBINE EVERYTHING =========================================
 
@@ -244,11 +238,11 @@ def combine_features(df, tfidf_df, cat_df, page_df, lang_df):
         .join(page_df, "isbn", "left") \
         .join(lang_df, "isbn", "left")
     
-    cat_cols = [c for c in cet_df.columns if c.startswith("cat_")]
+    cat_cols = [c for c in cat_df.columns if c.startswith("cat_")]
 
     # Assemble all features into one vector
     assembler = VectorAssembler(
-        inputCols=cat_cols + ["page_count_normalized", "language_vector"],
+        inputCols=cat_cols + ["tfidf_features", "page_count_normalized", "language_encoded"],
         outputCol="features",
         handleInvalid="skip"  # Skip rows with invalid values
     )
@@ -258,21 +252,14 @@ def combine_features(df, tfidf_df, cat_df, page_df, lang_df):
 
 # =========== SAVE TO POSTGRESQL ==========================================
 
-def save_to_postgres(df, spark):
-    # Convert vector to array for PostgreSQL
-    vector_to_array = udf(lambda v: v.toArray().tolist(), ArrayType(DoubleType()))
-    df_save = df.withColumn("feature_array", vector_to_array(col("features")))
-    
-    df_save.select("isbn", "feature_array") \
-        .write \
-        .jdbc(
-            url=JDBC_URL,
-            table="book_features",
-            mode="overwrite",  # Replace existing features
-            properties=JDBC_PROPERTIES
-        )
-    
-    print(" Features saved to book_features table")
+def save_to_delta(df):
+    df.write \
+      .format("delta") \
+      .mode("overwrite") \
+      .save("/Users/terezasaskova/Desktop/book-recomendation-system/delta/book_features")
+
+
+    print(" Features saved to Delta Lake")
 
 # ================= MAIN ===========================================
 
@@ -290,7 +277,7 @@ def main():
         
         df_final = combine_features(df, tfidf_df, cat_df, page_df, lang_df)
         
-        save_to_postgres(df_final, spark)
+        save_to_delta(df_final)
         
         print("COMPLETE!")
     
@@ -305,26 +292,5 @@ if __name__ == "__main__":
     main()
 
 
+#spark.read.format("delta").load("/delta/book_features").show(5)
 
-
-#spark processing part 1.
-
-"""
-Input:  books table (descriptions, categories, metadata)     
-Process:                                                     
-1. TF-IDF on book descriptions (Spark MLlib)             
- - Tokenization → Stop words removal → TF-IDF vectors    
-- Primary signal for content similarity                 
-2. One-hot encode categories (Fiction, Mystery, etc.)       
-3. Normalize page_count (min-max scaling)                   
-4. Normalize published_year                                 
-5. Encode language (categorical)                            
-Output: book_features table                                   
-- Combined feature vector per book                          
-- Used for content-based similarity   
-"""
-#from postgres load db => table books  - table conntent here: 
-#for the similarity content wise I use - describtion - idk if sentence transformer is the best?? - since the description is usually a bit vague...
-# I also use category for sure
-#also author
-#language

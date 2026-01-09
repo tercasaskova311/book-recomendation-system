@@ -23,3 +23,6 @@ great-expectations==0.18.8
 
 tqdm==4.66.1
 colorlog==6.8.0
+
+delta-spark
+
