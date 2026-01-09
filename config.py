@@ -57,6 +57,7 @@ TOP_K_SIMILAR = 50
 
 PROJECT_ROOT = os.path.dirname(os.path.abspath(__file__))
 DATA_DIR = os.path.join(PROJECT_ROOT, 'data')
+
 KAGGLE_BOOKS = os.path.join(DATA_DIR, 'Books.csv')
 KAGGLE_RATINGS = os.path.join(DATA_DIR, 'Ratings.csv')
 KAGGLE_USERS = os.path.join(DATA_DIR, 'Users.csv')

@@ -1,7 +1,43 @@
-#Transforms book data into ML-ready features for content-based recommendations
+"""
+Spark Feature Engineering Pipeline
+Transforms book data into ML-ready features for content-based recommendations
+"""
+
+# ============================================================
+# STANDARD LIBRARY IMPORTS
+# ============================================================
+import os
+import sys
+import re
+import traceback
+
+# ============================================================
+# THIRD-PARTY IMPORTS
+# ============================================================
+from dotenv import load_dotenv
+
+# PySpark Core
 from pyspark.sql import SparkSession
-from pyspark.sql.functions import col, udf, array_join, when, lower, regexp_replace, length, size, trim, explore, split
-from pyspark.sql.types import ArrayType, StringType, FloatType, IntegerType, DoubleType
+from pyspark.sql.functions import (
+    col, 
+    when, 
+    size, 
+    lower, 
+    array_join, 
+    lit,           # You'll need this for array(lit("Uncategorized"))
+    array,         # You'll need this too
+    length,
+    regexp_replace,
+    trim,
+    explode,       # Fixed typo: was "explore"
+    split,
+    min,
+    max,
+    substring      # For year extraction
+)
+from pyspark.sql.types import ArrayType, StringType, FloatType, DoubleType
+
+# PySpark ML
 from pyspark.ml.feature import (
     Tokenizer, 
     StopWordsRemover, 
@@ -12,16 +48,16 @@ from pyspark.ml.feature import (
     OneHotEncoder,
     VectorAssembler
 )
-import re
 from pyspark.ml import Pipeline
-import os
-from dotenv import load_dotenv
+
+# ============================================================
+# LOCAL IMPORTS
+# ============================================================
+# Add project root to path
 load_dotenv()
-import sys
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
-# CONFIG 
-import (
+from config import (
     JDBC_URL, 
     JDBC_PROPERTIES,
     TF_IDF_NUM_FEATURES,
@@ -29,17 +65,18 @@ import (
     CATEGORY_TOP_N,
     SPARK_DRIVER_MEMORY,
     SPARK_EXECUTOR_MEMORY,
+    SPARK_MASTER,
     POSTGRES_JDBC_JAR
 )
 
 # ============= SPARK SESSION ===============================================
 def create_spark_session(): #with postgresdriver ... 
-    return SparkSession.builder \
-        .appName("BookRecommendation-conntent-similarity") \
-        .config("spark.jars", POSTGRES_JDBC_JAR) \
-        .config("spark.driver.memory", SPARK_DRIVER_MEMORY) \ 
-        .config("spark.executor.memory", SPARK_EXECUTOR_MEMORY) \
-        .getOrCreate()
+    return (SparkSession.builder 
+        .appName("BookRecommendation-conntent-similarity") 
+        .config("spark.jars", POSTGRES_JDBC_JAR) 
+        .config("spark.driver.memory", SPARK_DRIVER_MEMORY)  
+        .config("spark.executor.memory", SPARK_EXECUTOR_MEMORY)
+        .getOrCreate())
 
 #rn i have 4g driver memory & 4g for each executor - this should be enought
 # =========== DATA LOADING ============================================
@@ -100,11 +137,7 @@ def process_descriptions(df): #book descriptions into TF-IDF vectors - Filter bo
 
 # ======== FEATURE 2: CATEGORY ENCODING ============================================
 def process_categories(df):
-    """One-hot encode book categories"""    
-    # take df and create new tbale df_cat with new col => Clean empty/null categories
-    df_cat = df.withColumn("categories_clean", when((col("categories").isNotNull()) & (size(col("categories")) > 0), col("categories")).otherwise(array(lit("Uncategorized"))))
-    
-    #convert to lowercase string
+    df_cat = df.withColumn("categories_clean", when((col("categories").isNotNull()) & (size(col("categories")) > 0), col("categories")).otherwise(array(lit("Uncategorized"))))    
     df_cat = df_cat.withColumn("categories_str", lower(array_join(col("categories_clean"), ",")))
     
     #Find top N categories by counting    
@@ -151,105 +184,85 @@ def process_categories(df):
         )
         safe_name = re.sub(r'[^a-z0-9_]', '', safe_name)
         cat_cols.append(f"cat_{safe_name}")
-        
-    assembler = VectorAssembler(
-        inputCols=cat_cols,
-        outputCol="category_features",
-        handleInvalid="keep"
-    )
     
-    df_cat_final = assembler.transform(df_cat)
-    print("✅ Category encoding complete\n")
-    return df_cat_final.select("isbn", "category_features")
+    return df.select("isbn", *cat_cols)
 
 # ======== FEATURE 3: NORMALIZE PAGE COUNT ============================================
-
-def normalize_page_count(df):    
+def normalize_page_count(df):  
     df_pages = df.filter(
         (col("page_count").isNotNull()) & 
         (col("page_count") > 0) & 
         (col("page_count") < 5000)
     ).withColumn("page_count", col("page_count").cast("double"))
-    
-    assembler = VectorAssembler(
-        inputCols=["page_count"],
-        outputCol="page_count_vec"
-    )
-    
-    df_pages = assembler.transform(df_pages)
 
-    scaler = MinMaxScaler(
-        inputCol="page_count_vec",
-        outputCol="page_count_normalized"
-    )
-    
-    scaler_model = scaler.fit(df_pages)
-    df_pages_scaled = scaler_model.transform(df_pages)    
-    return df_pages_scaled.select("isbn", "page_count_normalized")
+    stats = df_pages.agg(
+        min("page_count").alias("min_val"),
+        max("page_count").alias("max_val")
+    ).collect()[0]
 
+    min_val = stats["min_pages"]
+    max_val = stats["max_pages"]
+
+    df_normalized = df_pages.withColumn(
+        "page_count_normalized",
+        (col("page_count") - min_val) / (max_val - min_val)
+    )
+
+    return df_normalized.select("isbn", "page_count_normalized")
+   
 # ========== FEATURE 5: ENCODE LANGUAGE =============================================
 
 def encode_language(df):
     
     df_lang = df.filter(col("language").isNotNull())
     
-    # converts strings to indices
     indexer = StringIndexer(
         inputCol="language",
         outputCol="language_index"
     )
     
-    # One-hot encoder
     encoder = OneHotEncoder(
         inputCols=["language_index"],
-        outputCols=["language_encoded"]
+        outputCols=["language_encoded"],
+        dropLast=False
     )
+
+    pipeline = Pipeline(stages=[indexer, encoder]) #instruction
+
+    model = pipeline.fit(df_lang) #fit stringindexer = what lang exist + fit onehotencoder: how many cat?
+    df_encoded = model.transform(df_lang) #add lang index column => convert indices to one-hot vector
     
-    pipeline = Pipeline(stages=[indexer, encoder])
-    model = pipeline.fit(df_lang)
-    df_lang_encoded = model.transform(df_lang)    
-    return df_lang_encoded.select("isbn", "language_encoded")
+    return df_lang.select("isbn", "language_encoded") #select only language vector col
 
 # =================== COMBINE EVERYTHING =========================================
 
-def combine_features(df, tfidf_df, cat_df, page_df, year_df, lang_df):
-    """Combine all features into single vector per book"""    
-    df_combined = df.select("isbn") \
+def combine_features(df, tfidf_df, cat_df, page_df, lang_df):
+    
+    df_combined = df \
         .join(tfidf_df, "isbn", "left") \
         .join(cat_df, "isbn", "left") \
         .join(page_df, "isbn", "left") \
         .join(lang_df, "isbn", "left")
     
-    # Fill nulls with zeros (for books missing some features)
-    # This is handled by VectorAssembler's handleInvalid parameter
-    
+    cat_cols = [c for c in cet_df.columns if c.startswith("cat_")]
+
     # Assemble all features into one vector
     assembler = VectorAssembler(
-        inputCols=[
-            "tfidf_features",      # Description similarity (most important)
-            "category_features",   # Genre similarity
-            "page_count_normalized",
-            "language_encoded"
-        ],
+        inputCols=cat_cols + ["page_count_normalized", "language_vector"],
         outputCol="features",
         handleInvalid="skip"  # Skip rows with invalid values
     )
     
-    df_final = assembler.transform(df_combined)
-    
-    print(f"Combined features for {df_final.count()} books")
-    
+    df_final = assembler.transform(df_combined)    
     return df_final.select("isbn", "features")
 
 # =========== SAVE TO POSTGRESQL ==========================================
 
 def save_to_postgres(df, spark):
-    """Save feature vectors to book_features table"""    
     # Convert vector to array for PostgreSQL
     vector_to_array = udf(lambda v: v.toArray().tolist(), ArrayType(DoubleType()))
     df_save = df.withColumn("feature_array", vector_to_array(col("features")))
     
-    # Save to PostgreSQL
     df_save.select("isbn", "feature_array") \
         .write \
         .jdbc(
@@ -269,16 +282,22 @@ def main():
     
     try:
         df = load_books_from_postgres(spark)
-        
+
         tfidf_df = process_descriptions(df)
         cat_df = process_categories(df)
         page_df = normalize_page_count(df)
         lang_df = encode_language(df)
-        df_final = combine_features(df, tfidf_df, cat_df, page_df, year_df, lang_df)
+        
+        df_final = combine_features(df, tfidf_df, cat_df, page_df, lang_df)
+        
         save_to_postgres(df_final, spark)
         
         print("COMPLETE!")
-        
+    
+    except Exception as e:
+        print(f"❌ Error: {e}")       
+        traceback.print_exc()         
+
     finally:
         spark.stop()
 
