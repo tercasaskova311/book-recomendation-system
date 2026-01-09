@@ -1,21 +1,23 @@
-# spark_session.py
+# common/spark_session.py
 from pyspark.sql import SparkSession
 from typing import Optional, Dict, Any
-from config import SparkConfig
 import os
+import sys
+project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, project_root)
+from common.config import SparkConfig
 
-def _in_spark_submit() -> bool: #Check if running inside spark-submit
+def _in_spark_submit() -> bool:
     return "PYSPARK_SUBMIT_ARGS" in os.environ
 
-#========= SPARK SESSION =======================
-#app_name: Application name (overrides config)
+
 def get_spark_session(
     app_name: Optional[str] = None,
     config: Optional[SparkConfig] = None,
-    extra_conf: Optional[Dict[str, Any]] = None
+    extra_conf: Optional[Dict[str, Any]] = None,
+    enable_delta: bool = False  # ← ADD THIS PARAMETER
 ) -> SparkSession:
-    
-    # Load config from environment if not provided
+
     if config is None:
         config = SparkConfig.from_env()
     
@@ -63,13 +65,26 @@ def get_spark_session(
         for key, value in extra_conf.items():
             builder = builder.config(key, str(value))
     
-    # Create session
-    spark = builder.getOrCreate()
+    # Enable Delta Lake if requested
+    if enable_delta:
+        try:
+            from delta import configure_spark_with_delta_pip
+            spark = configure_spark_with_delta_pip(builder).getOrCreate()
+            print("✅ Delta Lake enabled")
+        except ImportError:
+            print("⚠️  Delta Lake not installed. Install with: pip install delta-spark")
+            print("⚠️  Continuing without Delta Lake support...")
+            spark = builder.getOrCreate()
+    else:
+        # Create session normally
+        spark = builder.getOrCreate()
     
     # Set log level
     spark.sparkContext.setLogLevel(config.log_level)
     
     return spark
 
-def create_spark() -> SparkSession: #Quick spark session with env defaults
+
+def create_spark() -> SparkSession:
+    """Quick spark session with env defaults"""
     return get_spark_session()

@@ -8,12 +8,14 @@ from pyspark.ml.evaluation import RegressionEvaluator
 from dotenv import load_dotenv
 load_dotenv()
 import sys
-sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, project_root)
+
 from common.spark_session import get_spark_session
 
 # ======== LOAD DATA =====================================
 
-def load_ratings(spark, path="data/Ratings.csv"):    
+def load_ratings(spark, path):    
     df = spark.read.csv(path, header=True, inferSchema=True)    
     df = df.select(
         col("User-ID").alias("user_id").cast("integer"),
@@ -148,9 +150,8 @@ def main():
     
     spark = get_spark_session(
         app_name="ALS-Training",
+        enable_delta=True,
         extra_conf={
-            "spark.sql.extensions": "io.delta.sql.DeltaSparkSessionExtension",
-            "spark.sql.catalog.spark_catalog": "org.apache.spark.sql.delta.catalog.DeltaCatalog",
             "spark.sql.shuffle.partitions": "50",
             "spark.default.parallelism": "50"
         }
@@ -160,7 +161,7 @@ def main():
     
     try:
         # 1. Load data
-        df = load_ratings(spark, path="data/ratings.csv")
+        df = load_ratings(spark,"data/Ratings.csv")
         
         # 2. Index users and items
         df_indexed, user_indexer, item_indexer = index_users_items(df)
