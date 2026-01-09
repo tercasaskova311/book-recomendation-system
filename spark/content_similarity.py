@@ -2,8 +2,6 @@
 content similarity feature extraction (Transforms book data into ML-ready features for content-based recommendations)
 n.pages, description, category, language => into one vector space
 """
-
-
 import os
 import sys
 import re
@@ -41,36 +39,16 @@ from pyspark.ml.feature import (
 from pyspark.ml import Pipeline
 
 load_dotenv()
-sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
-
 from config import (
     JDBC_URL, 
     JDBC_PROPERTIES,
     TF_IDF_NUM_FEATURES,
     MIN_DESCRIPTION_LENGTH,
     CATEGORY_TOP_N,
-    SPARK_DRIVER_MEMORY,
-    SPARK_EXECUTOR_MEMORY,
-    SPARK_MASTER,
-    POSTGRES_JDBC_JAR
+    POSTGRES_JDBC_JAR  
 )
-from delta import configure_spark_with_delta_pip
-
-# ============= SPARK SESSION ===============================================
-def create_spark_session(): #with postgresdriver ... 
-    builder = (
-        SparkSession.builder 
-        .appName("BookRecommendation-conntent-similarity") 
-        .config("spark.jars", POSTGRES_JDBC_JAR) 
-        .config("spark.driver.extraClassPath", POSTGRES_JDBC_JAR) \
-        .config("spark.executor.extraClassPath", POSTGRES_JDBC_JAR)
-        .config("spark.driver.memory", SPARK_DRIVER_MEMORY)  
-        .config("spark.executor.memory", SPARK_EXECUTOR_MEMORY)
-        .config("spark.sql.extensions", "io.delta.sql.DeltaSparkSessionExtension")
-        .config("spark.sql.catalog.spark_catalog", "org.apache.spark.sql.delta.catalog.DeltaCatalog")
-    )
-
-    return configure_spark_with_delta_pip(builder).getOrCreate()
+sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+from common.spark_session import get_spark_session, _in_spark_submit, create_spark
 
 # =========== DATA LOADING ============================================
 
@@ -263,10 +241,15 @@ def save_to_delta(df):
 
 # ================= MAIN ===========================================
 
-def main():    
-    spark = create_spark_session()
-    spark.sparkContext.setLogLevel("WARN")  # Reduce verbose logging
-    
+def main():
+    spark = get_spark_session(
+        app_name="BookRecommendation-content-similarity",
+        extra_conf={
+            "spark.sql.extensions": "io.delta.sql.DeltaSparkSessionExtension",
+            "spark.sql.catalog.spark_catalog": "org.apache.spark.sql.delta.catalog.DeltaCatalog"
+        }
+    )
+        
     try:
         df = load_books_from_postgres(spark)
 
