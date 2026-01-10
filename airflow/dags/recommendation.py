@@ -10,19 +10,20 @@ import yaml
 with open('/opt/airflow/config/pipeline_config.yaml') as f:
     config = yaml.safe_load(f)
 
-from config import SPARK
+from config import SPARK_MASTER, SPARK_DRIVER_MEMORY, SPARK_EXECUTOR_MEMORY. DB_HOST, DB_PORT, SPARK_EXECUTOR_CORES
 
+#======= CONFIG ===========================
 SPARK_ENV = {
     'spark.master' : SPARK_MASTER,
     'spark.driver.memory' : SPARK_DRIVER_MEMORY,
-    'spark.executor.memory': '4g',
-    'spark.executor.cores': '2',
+    'spark.executor.memory': SPARK_EXECUTOR_MEMORY,
+    'spark.executor.cores': SPARK_EXECUTOR_CORES,
     'spark.sql.shuffle.partitions': '50',
 }
 
 SPARK_ENV = {
-    'DB_HOST': 'postgres',
-    'DB_PORT': '5432',
+    'DB_HOST': DB_HOST,
+    'DB_PORT': DB_PORT,
     'PYTHONPATH': '/opt/project',
 }
 
@@ -34,7 +35,6 @@ default_args = {
     'retrieves': 2,
     'retry_delay': timedelta(minutes=5)
 }
-
 
 
 def should_run_pipeline():
@@ -74,8 +74,7 @@ def should_run_pipeline():
     
     return threshold_met
 
-
-
+#======== DAG ===========================
 
 with DAG(
     dag_id='recommendation',

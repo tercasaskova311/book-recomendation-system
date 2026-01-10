@@ -1,9 +1,5 @@
-# airflow/dags/data_ingestion.py
-"""
-DAG 1: Data Ingestion
-Enriches books daily from Google Books API.
-Runs independently at 1 AM daily.
-"""
+#Runs independently at 1 AM daily
+
 from airflow import DAG
 from airflow.operators.python import PythonOperator
 from airflow.utils.dates import days_ago
@@ -13,6 +9,7 @@ import sys
 from fetching_data import GoogleBooksClient
 import psycopg2
 
+#========== 100 NEW BOOKS PER DAY =======================
 def enrich_books_from_api(): #Fetch up to 100 unenriched books and enrich them using Google Books API.
 
     sys.path.insert(0, '/opt/project')
@@ -37,7 +34,7 @@ def enrich_books_from_api(): #Fetch up to 100 unenriched books and enrich them u
     books_to_enrich = cursor.fetchall()
     
     if not books_to_enrich:
-        print("✅ No books need enrichment")
+        print(" No books need enrichment")
         cursor.close()
         conn.close()
         return 0
