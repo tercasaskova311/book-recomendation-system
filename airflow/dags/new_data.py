@@ -1,95 +1,111 @@
+# airflow/dags/data_ingestion.py
+"""
+DAG 1: Data Ingestion
+Enriches books daily from Google Books API.
+Runs independently at 1 AM daily.
+"""
 from airflow import DAG
 from airflow.operators.python import PythonOperator
-from airflow.providers.apache.spark.operators.spark_submit import SparkSubmitOperator
-from datetime import datetime, timedelta
-import psycopg2
+from airflow.utils.dates import days_ago
+from datetime import timedelta
 import os
-from airflow.operators.python import ShortCircuitOperator
+import sys 
+from fetching_data import GoogleBooksClient
+import psycopg2
 
-with open('')
-    config = yaml.safe_load(f)
+def enrich_books_from_api(): #Fetch up to 100 unenriched books and enrich them using Google Books API.
 
-default_args =()
+    sys.path.insert(0, '/opt/project')
+    # Database connection
+    conn = psycopg2.connect(
+        host=os.getenv('DB_HOST', 'postgres'),
+        port=os.getenv('DB_PORT', '5432'),
+        database=os.getenv('DB_NAME', 'book_recommendations'),
+        user=os.getenv('DB_USER'),
+        password=os.getenv('DB_PASSWORD', '')
+    )
+    cursor = conn.cursor()
+    
+    cursor.execute("""
+        SELECT isbn, kaggle_title, kaggle_author 
+        FROM books 
+        WHERE enriched = FALSE 
+        AND data_source = 'kaggle_only'
+        LIMIT 100
+    """)
+    
+    books_to_enrich = cursor.fetchall()
+    
+    if not books_to_enrich:
+        print("✅ No books need enrichment")
+        cursor.close()
+        conn.close()
+        return 0
+    
+    print(f" Enriching {len(books_to_enrich)} books from Google Books API...")
+    
+    # Initialize Google Books client
+    client = GoogleBooksClient(rate_limit_delay=0.1)
+    enriched_count = 0
+    
+    for isbn, title, author in books_to_enrich:
+        google_data = client.search_by_isbn(isbn)
+        
+        if google_data:
+            cursor.execute("""
+                UPDATE books 
+                SET 
+                    title = %s,
+                    description = %s,
+                    authors = %s,
+                    categories = %s,
+                    publisher = %s,
+                    published_date = %s,
+                    page_count = %s,
+                    language = %s,
+                    enriched = TRUE,
+                    data_source = 'google_books'
+                WHERE isbn = %s
+            """, (
+                google_data['title'],
+                google_data['description'],
+                google_data['authors'],
+                google_data['categories'],
+                google_data['publisher'],
+                google_data['published_date'],
+                google_data['page_count'],
+                google_data['language'],
+                isbn
+            ))
+            enriched_count += 1
+    
+    # Commit changes
+    conn.commit()
+    cursor.close()
+    conn.close()
+    
+    print(f" Successfully enriched {enriched_count}/{len(books_to_enrich)} books")
+    
+    return enriched_count
+
+#========= DAG DEFINITION =======================
+default_args = {
+    'owner' : 'data_team',
+    'retries': 2,
+    'retry_delay': timedelta(minutes=5),
+}
 
 with DAG(
-    'book_recommendations_pipeline',
+    'new_books',
     default_args=default_args,
-    description='Generate personalized book recommendations',
-    schedule_interval='0 2 * * *',  # Cron: 2:00 AM daily
+    description='adding new books from google books api',
+    schedule_interval='0 1 * * *',  # 1:00 AM daily
+    start_date=days_ago(1),
     catchup=False,  # Don't backfill missed runs
     max_active_runs=1,  # Only one pipeline instance at a time
-    tags=['ml', 'recommendations', 'spark'],
+    tags=['ingestion', 'google-api', 'books'],
 ) as dag:
-
-    #100 books per day from google books api
-    download_books = SparkSubmitOperator(
-        task_id='download_books',
-        application='/opt/project/ingestion/load_data.py',
-        conn_id='spark_default',
-        conf={'spark.master': 'local[*]'},
-        env_vars={
-            'GOOGLE_API_KEY': os.getenv('GOOGLE_API_KEY'),
-            'DB_HOST': os.getenv('DB_HOST'),
-            'DB_PORT': os.getenv('DB_PORT'),
-            'DB_USER': os.getenv('DB_USER'),
-            'DB_PASSWORD': os.getenv('DB_PASSWORD'),
-            'DB_NAME': os.getenv('DB_NAME'),
-            'PYTHONPATH': '/opt/project',
-        },
-        jars='/opt/project/postgresql-42.7.1.jar',
-        packages='io.delta:delta-core_2.12:2.4.0',
-        dag=dag,
+    enrich_books_task = PythonOperator(
+        task_id= 'enrich_books',
+        python_callable= enrich_books_from_api,
     )
-
-    download_ratings = BashOperator(
-        task_id='download_ratings',
-        bash_command=''
-    )
-
-    process_similarities = SparkSubmitOperator(
-        task_id='process_similarities',
-        application='',
-        name='',
-        package=''
-        conf={
-
-        }
-        env_vars={}
-        verbose=True
-    )
-
-
-
-
-
-
-
-
-
-
-#Orchestration: Apache Airflow (optional) or Cron = Trigger: Daily at 2:00 AM OR when new_ratings > 1000 
-#okay so I have these scripts:
-#ingestion/load_data.py = enriching kaggle data by google_books_api (100 per day)- I should schedule that as well
-#spark:
-"""
-- spark/content_similarity.py = fetching features from description, language, pages = computing similarity of vectors by lsh
-- spark/user_preferences.py = getting ratings of users from kaggle => computing ALS score - each user top 100 books => idk yet how would this work potentionally in real life scenario - for now I have only static data from kaggle - there is many users tho - I am thinking tho that for a serving layer - I would create a possibility to rate a book(by isbn) and this would be add to the postgres rating csv and depends and add to the system?? idk this is kinda advnace..
-- spark/hybrid_recs.py = getting the two recs score together - creating a recommendation based on both user rating of some other book and existing books
-"""
-
-#streamlit: app/dashboard.py - simple UI for the scrits - will be adjusted based on the othe scripts
-
-
-
-
-
-
-
-# This creates:
-#         check_data
-#         /         \
-# content_features  collaborative_filtering
-#         \         /
-#      hybrid_recs
-#           |
-#       validate
