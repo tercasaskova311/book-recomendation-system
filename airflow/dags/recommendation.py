@@ -7,13 +7,12 @@ import psycopg2
 import os
 import yaml
 
-with open('/opt/airflow/config/pipeline_config.yaml') as f:
-    config = yaml.safe_load(f)
+config_path = '/opt/airflow/config/pipeline_config.yaml'
 
-from config import SPARK_MASTER, SPARK_DRIVER_MEMORY, SPARK_EXECUTOR_MEMORY. DB_HOST, DB_PORT, SPARK_EXECUTOR_CORES
+from config import (SPARK_MASTER, SPARK_DRIVER_MEMORY, SPARK_EXECUTOR_MEMORY, DB_HOST, DB_PORT, SPARK_EXECUTOR_CORES)
 
 #======= CONFIG ===========================
-SPARK_ENV = {
+SPARK_CONF = {
     'spark.master' : SPARK_MASTER,
     'spark.driver.memory' : SPARK_DRIVER_MEMORY,
     'spark.executor.memory': SPARK_EXECUTOR_MEMORY,
@@ -32,10 +31,9 @@ SPARK_PACKAGES = 'io.delta:delta-core_2.12:2.4.0'
 
 default_args = {
     'owner': 'ml-team',
-    'retrieves': 2,
+    'retries': 2,
     'retry_delay': timedelta(minutes=5)
 }
-
 
 def should_run_pipeline():
     """
@@ -68,9 +66,9 @@ def should_run_pipeline():
         new_books >= config.get('new_books_threshold', 100)
     )
     
-    print(f"📊 New ratings: {new_ratings}")
-    print(f"📚 New books: {new_books}")
-    print(f"{'✅ Threshold MET' if threshold_met else '⏸️ Threshold NOT met'}")
+    print(f" New ratings: {new_ratings}")
+    print(f" New books: {new_books}")
+    print(f"{'Threshold MET' if threshold_met else '⏸️ Threshold NOT met'}")
     
     return threshold_met
 
@@ -78,7 +76,7 @@ def should_run_pipeline():
 
 with DAG(
     dag_id='recommendation',
-    description='ml pipeline fro book recs'
+    description='ml pipeline for book recs'
     start_date = days_ago(1),
     schedule_interval= '0 2 * * *',
     max_active_runs=1,
@@ -132,7 +130,7 @@ with DAG(
     check_threshold >> [content_features, collaborative_filtering]
     
     # Then combine
-    [content_features, collaborative_filtering] >> hybrid_recs
+    [content_features, collaborative_filtering] >> hybrid_recommendations  
 
 
 

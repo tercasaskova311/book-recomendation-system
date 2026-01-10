@@ -8,11 +8,11 @@ import os
 import sys 
 from fetching_data import GoogleBooksClient
 import psycopg2
+sys.path.insert(0, '/opt/project')
 
 #========== 100 NEW BOOKS PER DAY =======================
 def enrich_books_from_api(): #Fetch up to 100 unenriched books and enrich them using Google Books API.
 
-    sys.path.insert(0, '/opt/project')
     # Database connection
     conn = psycopg2.connect(
         host=os.getenv('DB_HOST', 'postgres'),

@@ -11,11 +11,9 @@ RUN apt-get update && \
     apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # Install Apache Spark 4.1.1 (latest stable)
-RUN curl -fsSL https://downloads.apache.org/spark/spark-4.1.1/spark-4.1.1-bin-hadoop3.tgz \
+RUN curl -fsSL https://downloads.apache.org/spark/spark-3.5.6/spark-3.5.6-bin-hadoop3.tgz \
     | tar -xz -C /opt && \
-    ln -s /opt/spark-4.1.1-bin-hadoop3 /opt/spark
-
-
+    ln -s /opt/spark-3.5.6-bin-hadoop3 /opt/spark
 
 # Variabili ambiente
 ENV JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64
@@ -29,3 +27,9 @@ RUN pip install --no-cache-dir --index-url https://download.pytorch.org/whl/cpu 
 RUN pip install --no-cache-dir -r /requirements.txt
 
 
+USER root
+
+RUN mkdir -p /opt/airflow/config && \
+    chown -R airflow: /opt/airflow/config
+
+USER airflow
