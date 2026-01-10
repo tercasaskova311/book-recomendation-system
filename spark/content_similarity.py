@@ -203,23 +203,29 @@ def combine_features(df, tfidf_df, cat_df, page_df, lang_df, tfidf_weight=0.7, c
     
     cat_cols = [c for c in cat_df.columns if c.startswith("cat_")]    
     n_categories = len(cat_cols)  
-    
+
     sample_tfidf = tfidf_df.select("tfidf_features").first()
-    n_tfidf = sample_tfidf['tfidf_features'].size  
+    if sample_tfidf is None:
+        raise ValueError("tfidf_df is empty")
+    n_tfidf = sample_tfidf["tfidf_features"].size
+
     
     sample_lang = lang_df.select("language_encoded").first()
-    n_language = sample_lang['language_encoded'].size  
-    
+    if sample_lang is None:
+        raise ValueError("lang_df is empty")
+    n_language = sample_lang["language_encoded"].size
+
     n_page = 1  
     n_metadata = n_page + n_language  
 
     assembler = VectorAssembler(
         inputCols=cat_cols + ["tfidf_features", "page_count_normalized", "language_encoded"],
-        outputCol="features",
+        outputCol="features_unweighted",
         handleInvalid="skip"  # Skip rows with invalid values
     )
 
     df_assembled = assembler.transform(df_combined) 
+    
 
     def create_weighted_features(features_vector):
 
@@ -249,8 +255,7 @@ def combine_features(df, tfidf_df, cat_df, page_df, lang_df, tfidf_weight=0.7, c
         weight_udf("features_unweighted")
     )
         
-    return df_weighted.select("isbn", "features_unweighted").withColumnRenamed("features_weighted", "features")
-
+    return df_weighted.select("isbn", "features")
 
 # ========== COSINE SIMILARITY COMPUTATION ===========================
 

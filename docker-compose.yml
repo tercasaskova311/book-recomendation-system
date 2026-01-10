@@ -1,0 +1,193 @@
+#how to run docker containers...
+
+version: '3.8'
+
+services:
+
+#Database - nothing built locally => postgres 13 from prebuilt docker hub image .... 
+  postgres:
+    image: postgres:13
+    container_name: book-recs-postgres
+    environment:
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: ${DB_NAME}
+    env_file:
+      - .env.development
+    ports: #HOST_PORT(laptop port):CONTAINER_PORT(inside container)
+      - "${DB_PORT}:5432"  
+
+    volumes: 
+      #volume name : container path = docker-compose down → Data safe in volume 
+      - postgres-data:/var/lib/postgresql/data
+      #local path : container path
+        #   1. Container starts for first time
+        #   2. Postgres sees schema.sql
+        #   3. Runs: psql -U $POSTGRES_USER -d $POSTGRES_DB < schema.sql
+        #   4.  tables are created
+      - ./src/database/schema.sql:/docker-entrypoint-initdb.d/schema.sql
+
+    healthcheck:
+      # if postgres is ready
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+    networks: #all container in same network are now connected... = hostname = service name
+      - book-recs-network
+
+
+
+#============= SPARK MASTER =======================================
+
+  spark-master:
+    image: ${SPARK_IMAGE_NAME}:${SPARK_IMAGE_TAG}
+    container_name: spark-master
+    environment:
+      - SPARK_MODE=master
+      - SPARK_RPC_AUTHENTICATION_ENABLED=no
+      - SPARK_RPC_ENCRYPTION_ENABLED=no
+      - SPARK_LOCAL_STORAGE_ENCRYPTION_ENABLED=no
+      - SPARK_SSL_ENABLED=no
+    ports:
+      - "7077:7077"   # internal communication
+      - "8080:8080"   # Spark Web UI = monitor jobs
+    volumes:
+      # in order to spark accesing the files 
+      - ./:/opt/project
+      - ./delta:/opt/project/delta  # Delta Lake storage
+      - ./data:/opt/project/data    # CSV data
+
+    networks:
+      - book-recs-network
+
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+#===================================================================
+
+  spark-worker:
+    image: ${SPARK_IMAGE_NAME}:${SPARK_IMAGE_TAG}
+    container_name: spark-worker-1
+
+    environment:
+      - SPARK_MODE=worker
+      - SPARK_MASTER_URL=spark://spark-master:7077
+  # Worker connects to master at startup:
+  #   1. Resolves "spark-master" to container IP (via Docker DNS)
+  #   2. Connects to port 7077
+  #   3. Registers itself
+  #   4. Master assigns tasks to it
+
+      - SPARK_WORKER_MEMORY=4G
+      - SPARK_WORKER_CORES=2
+      - PYTHONPATH=/opt/project
+      - PYSPARK_PYTHON=python3
+
+    depends_on:
+      spark-master:
+        condition: service_healthy  # Wait for master to be ready
+    volumes:
+      - ./:/opt/project
+      - ./delta:/opt/project/delta
+      - ./data:/opt/project/data
+    networks:
+      - book-recs-network
+
+
+#========= AIRFLOW ==========================
+  airflow-scheduler:
+    image: ${AIRFLOW_IMAGE_NAME}:${AIRFLOW_IMAGE_TAG}
+    container_name: airflow-scheduler
+    depends_on:
+      postgres:
+        condition: service_healthy
+      spark-master:
+        condition: service_healthy
+
+    environment:
+      - AIRFLOW__CORE__EXECUTOR=LocalExecutor
+      - AIRFLOW__CORE__SQL_ALCHEMY_CONN=postgresql+psycopg2://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres/${POSTGRES_DB_AIRFLOW}
+  # postgresql+psycopg2://USER:PASSWORD@HOST/DATABASE
+  #   ↑ dialect+driver  ↑     ↑         ↑    ↑
+  #   └─ PostgreSQL     │     │         │    └─ Database name
+  #   └─ psycopg2 lib   │     │         └─ Docker service name!
+  #                      │     └─ From .env.development
+  #                      └─ From .env.development
+
+      - AIRFLOW__CORE__LOAD_EXAMPLES=False
+      - PYTHONPATH=/opt/project
+      - DB_HOST=postgres  # Point to Docker service name...
+      - DB_PORT=5432      # Inside Docker network, Postgres uses default 5432
+    env_file:
+      - .env.development
+    volumes:
+      - ./airflow/dags:/opt/airflow/dags
+        # Any .py file here = a workflow (DAG)
+      - ./:/opt/project  # Full project access
+      - ./delta:/opt/project/delta
+
+    command: scheduler
+    networks:
+      - book-recs-network
+
+#control for scheduling - UI...
+  airflow-webserver:
+    image: ${AIRFLOW_IMAGE_NAME}:${AIRFLOW_IMAGE_TAG}
+    container_name: airflow-webserver
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      - AIRFLOW__CORE__EXECUTOR=LocalExecutor
+      - AIRFLOW__CORE__SQL_ALCHEMY_CONN=postgresql+psycopg2://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres/${POSTGRES_DB_AIRFLOW}
+      - AIRFLOW__WEBSERVER__RBAC=True
+    env_file:
+      - .env.development
+    ports:
+      - "8081:8080"  # Access at http://localhost:8081
+    volumes:
+      - ./airflow/dags:/opt/airflow/dags
+      - ./:/opt/project
+    command: webserver
+    networks:
+      - book-recs-network
+
+#streamlit UI... 
+  streamlit:
+    image: ${DASHBOARD_IMAGE_NAME}:${DASHBOARD_IMAGE_TAG}
+    container_name: streamlit-dashboard
+    depends_on:
+      - postgres
+    environment:
+      - PYTHONPATH=/opt/project
+      - DB_HOST=postgres
+      - DB_PORT=5432
+    env_file:
+      - .env.development
+    ports:
+      - "8501:8501"  # Access at http://localhost:8501
+    volumes:
+      - ./:/opt/project
+      - ./delta:/opt/project/delta
+    command: >
+      streamlit run /opt/project/app/stream_lit.py 
+      --server.port 8501 
+      --server.address 0.0.0.0
+
+    networks:
+      - book-recs-network
+
+#Allows containers to talk to each other
+networks:
+  book-recs-network:
+    driver: bridge  # Creates a virtual network to containers
+
+# VOLUMES - Persistent storage that survives container deletion
+volumes:
+  postgres-data:  # Database files persist here
+  delta-data:     # Delta Lake files persist here

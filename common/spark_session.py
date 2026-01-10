@@ -61,22 +61,24 @@ def get_spark_session(
     
     # Enable Delta Lake if requested
     if enable_delta:
-        try:
-            spark = configure_spark_with_delta_pip(builder).getOrCreate()
-            print("Delta Lake enabled")
-        except ImportError:
-            print("Delta Lake not installed. Install with: pip install delta-spark")
-            print("Continuing without Delta Lake support...")
-            spark = builder.getOrCreate()
-    else:
-        # Create session normally
-        spark = builder.getOrCreate()
-    
+        builder = builder \
+            .config(
+                "spark.sql.extensions",
+                "io.delta.sql.DeltaSparkSessionExtension"
+            ) \
+            .config(
+                "spark.sql.catalog.spark_catalog",
+                "org.apache.spark.sql.delta.catalog.DeltaCatalog"
+            )
+        spark = configure_spark_with_delta_pip(builder).getOrCreate()
+        print("Delta Lake enabled")
+
     # Set log level
     spark.sparkContext.setLogLevel("WARN")
     
     return spark
 
+    
 
 def create_spark() -> SparkSession:
     """Quick spark session with env defaults"""

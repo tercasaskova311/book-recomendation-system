@@ -1,40 +1,52 @@
-# Makefile for managing Big Data platform services
+#var def: dockerfiles for aiflow, spark, streamlit
 SPARK_PATH=./docker/spark
 AIRFLOW_PATH=./docker/airflow
-DASHBOARD_PATH=./docker/streamlit
+DASHBOARD_PATH=./docker/dashboard
 
 
-# Load env vars from .env.development
+#setting up comands
+
+.PHONY: help init build up down restart logs status clean \
+        db-init db-migrate db-shell spark-shell airflow-ui \
+        test validate
+
+
+# Load env vars from .env
+#ifenq = if not equal
 ifneq (,$(wildcard .env.development))
-  include .env.development
-  export $(shell sed 's/=.*//' .env.development)
-endif
+include .env.development #load all key var: f.e. => DB_HOST=postgres => $(DB_HOST)
 
-.PHONY: up down restart logs status \
-        build-spark-image spark-up spark-down spark-logs spark-status \
-        spark-up-metadata spark-up-transcripts-en spark-up-summary \
-        build-airflow-image airflow-up airflow-down airflow-logs \
-		build-dashboard-image dashboard-up dashboard-down dashboard-logs \
-		init
+#sed = stream editor
+#'s/=.*//' => extract variables beofre = 
+export $(shell sed 's/=.*//' .env.development) 
 
-# -- Spark Commands ---
-build-spark-image:
+# WHY EXPORT?
+  # - "include" makes variables available to Make
+  # - "export" makes them available to shell commands (docker, python, etc.)
+  # ══════════════════════════════════════════
+endif 
+
+#===== SPARK COMMANDS ============
+#usage: make build-spark-image
+
+build-spark-image: #target name - no dependencies 
 	docker build -t $(SPARK_IMAGE_NAME):$(SPARK_IMAGE_TAG) $(SPARK_PATH)/
 
 spark-up:
-	@$(MAKE) build-spark-image
-	docker compose --env-file .env.development -f $(SPARK_PATH)/docker-compose.yml up -d --build
+	@$(MAKE) build-spark-image #cleaner output in terminal....
+	docker compose --env-file .env.development -f $(SPARK_PATH)/docker-compose.yml up -d --build #up: create + start container, d: detached mode- run in background, build: rebuild images before starting containers
 
-spark-down:
+spark-down: #down: can restart later vs down: stops + removes....
 	docker compose -f $(SPARK_PATH)/docker-compose.yml down
 
-spark-logs:
+spark-logs: #with -f: 	#   Shows existing logs + keeps streaming new ones
 	docker compose -f $(SPARK_PATH)/docker-compose.yml logs -f
 
-spark-status:
+spark-status: #ps: list containers(name, status, ports)
 	docker compose -f $(SPARK_PATH)/docker-compose.yml ps
 
-# -- Airflow Commands ---
+
+#====== AIRFLOW SET UP ======================================
 build-airflow-image:
 	docker build -t $(AIRFLOW_IMAGE_NAME):$(AIRFLOW_IMAGE_TAG) $(AIRFLOW_PATH)/
 
@@ -48,7 +60,8 @@ airflow-down:
 airflow-logs:
 	docker compose -f $(AIRFLOW_PATH)/docker-compose.yml logs -f
 
-# -- Dashboard Commands ---
+
+#===== STREAMLIT SETUP ======================
 build-dashboard-image:
 	docker build -t $(DASHBOARD_IMAGE_NAME):$(DASHBOARD_IMAGE_TAG) $(DASHBOARD_PATH)/
 
@@ -62,12 +75,16 @@ dashboard-down:
 dashboard-logs:
 	docker compose -f $(DASHBOARD_PATH)/docker-compose.yml logs -f
 
-# --- General Aggregate Commands ---
+#====== GENERAL COMMANDS ================================
+#up = starts all services(make up)
 up: spark-up airflow-up dashboard-up
 
+#make down
 down:  spark-down airflow-down dashboard-down 
 
 restart: down up
+
+#show recent logs from all services (make logs)
 
 logs:
 	@echo "\n--- Spark Logs ---"
@@ -75,19 +92,22 @@ logs:
 	@echo "\n--- Airflow Logs ---"
 	docker compose -f $(AIRFLOW_PATH)/docker-compose.yml logs --tail=20
 	@echo "\n--- Dashboard Logs ---";
-	docker compose -f $(STREAMLIT_PATH)/docker-compose.yml logs --tail=20
+	docker compose -f $(DASHBOARD_PATH)/docker-compose.yml logs --tail=20
 
 status:
 	@echo "\n--- Spark Status ---"
 	docker compose -f $(SPARK_PATH)/docker-compose.yml ps
+	@echo "\n--- Airflow Status ---"
+	docker compose -f $(AIRFLOW_PATH)/docker-compose.yml ps
 	@echo "\n--- Dashboard Status ---"
 	docker compose -f $(DASHBOARD_PATH)/docker-compose.yml ps
 
-# --- Full Project Initialization ---
+# ===== FULL INITIALIZATION ================
+#make init
 init:
+#start airflow first! - needs in init..., built spark explicitely 
 	@$(MAKE) airflow-up
 	@docker compose -f $(SPARK_PATH)/docker-compose.yml build
-	done
 	@$(MAKE) spark-up
 	@$(MAKE) dashboard-up
 	@$(MAKE) status
