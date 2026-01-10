@@ -1,0 +1,93 @@
+# Makefile for managing Big Data platform services
+SPARK_PATH=./docker/spark
+AIRFLOW_PATH=./docker/airflow
+DASHBOARD_PATH=./docker/streamlit
+
+
+# Load env vars from .env.development
+ifneq (,$(wildcard .env.development))
+  include .env.development
+  export $(shell sed 's/=.*//' .env.development)
+endif
+
+.PHONY: up down restart logs status \
+        build-spark-image spark-up spark-down spark-logs spark-status \
+        spark-up-metadata spark-up-transcripts-en spark-up-summary \
+        build-airflow-image airflow-up airflow-down airflow-logs \
+		build-dashboard-image dashboard-up dashboard-down dashboard-logs \
+		init
+
+# -- Spark Commands ---
+build-spark-image:
+	docker build -t $(SPARK_IMAGE_NAME):$(SPARK_IMAGE_TAG) $(SPARK_PATH)/
+
+spark-up:
+	@$(MAKE) build-spark-image
+	docker compose --env-file .env.development -f $(SPARK_PATH)/docker-compose.yml up -d --build
+
+spark-down:
+	docker compose -f $(SPARK_PATH)/docker-compose.yml down
+
+spark-logs:
+	docker compose -f $(SPARK_PATH)/docker-compose.yml logs -f
+
+spark-status:
+	docker compose -f $(SPARK_PATH)/docker-compose.yml ps
+
+# -- Airflow Commands ---
+build-airflow-image:
+	docker build -t $(AIRFLOW_IMAGE_NAME):$(AIRFLOW_IMAGE_TAG) $(AIRFLOW_PATH)/
+
+airflow-up:
+	@$(MAKE) build-airflow-image
+	docker compose --env-file .env.development -f $(AIRFLOW_PATH)/docker-compose.yml up -d --build
+
+airflow-down:
+	docker compose -f $(AIRFLOW_PATH)/docker-compose.yml down
+
+airflow-logs:
+	docker compose -f $(AIRFLOW_PATH)/docker-compose.yml logs -f
+
+# -- Dashboard Commands ---
+build-dashboard-image:
+	docker build -t $(DASHBOARD_IMAGE_NAME):$(DASHBOARD_IMAGE_TAG) $(DASHBOARD_PATH)/
+
+dashboard-up:
+	@$(MAKE) build-dashboard-image
+	docker compose --env-file .env.development -f $(DASHBOARD_PATH)/docker-compose.yml up -d --build
+
+dashboard-down:
+	docker compose -f $(DASHBOARD_PATH)/docker-compose.yml down
+
+dashboard-logs:
+	docker compose -f $(DASHBOARD_PATH)/docker-compose.yml logs -f
+
+# --- General Aggregate Commands ---
+up: spark-up airflow-up dashboard-up
+
+down:  spark-down airflow-down dashboard-down 
+
+restart: down up
+
+logs:
+	@echo "\n--- Spark Logs ---"
+	docker compose -f $(SPARK_PATH)/docker-compose.yml logs --tail=20
+	@echo "\n--- Airflow Logs ---"
+	docker compose -f $(AIRFLOW_PATH)/docker-compose.yml logs --tail=20
+	@echo "\n--- Dashboard Logs ---";
+	docker compose -f $(STREAMLIT_PATH)/docker-compose.yml logs --tail=20
+
+status:
+	@echo "\n--- Spark Status ---"
+	docker compose -f $(SPARK_PATH)/docker-compose.yml ps
+	@echo "\n--- Dashboard Status ---"
+	docker compose -f $(DASHBOARD_PATH)/docker-compose.yml ps
+
+# --- Full Project Initialization ---
+init:
+	@$(MAKE) airflow-up
+	@docker compose -f $(SPARK_PATH)/docker-compose.yml build
+	done
+	@$(MAKE) spark-up
+	@$(MAKE) dashboard-up
+	@$(MAKE) status

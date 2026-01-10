@@ -1,0 +1,18 @@
+version: "3.8"
+services:
+  dashboard:
+    image: ${DASHBOARD_IMAGE_NAME}:${DASHBOARD_IMAGE_TAG}
+    container_name: dashboard
+    volumes:
+      - ${PWD}:/opt/project
+      - ${PWD}/data:/data
+    ports:
+      - "8084:8504"
+    env_file:
+      - ../../.env.development
+    environment:
+      - PYTHONPATH=/opt/project
+    command: >
+      streamlit run /opt/project/scripts/dashboard/dashboard.py --server.port 8504 --server.address 0.0.0.0
+    restart: unless-stopped
+
