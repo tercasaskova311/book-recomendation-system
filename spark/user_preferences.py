@@ -13,136 +13,189 @@ sys.path.insert(0, project_root)
 
 from common.spark_session import get_spark_session
 
+# ============ ALS HYPERPARAMETERS ============
+ALS_RANK = 50          # Number of latent factors (complexity of patterns)
+ALS_MAX_ITER = 10      # Training iterations
+ALS_REG = 0.1          # Regularization (prevent overfitting)
+MIN_RATING = 1         # Filter out implicit 0 ratings
+N_RECOMMENDATIONS = 100  # Top-N recommendations per user
+
+# ============ PATHS ============
+ALS_MODEL_PATH = "models/als_model"
+ALS_INDEXERS_PATH = "models/als_indexers"
+DELTA_USER_RECS = "delta/collaborative_recommendations"
+DELTA_USER_FACTORS = "delta/user_factors"
+DELTA_ITEM_FACTORS = "delta/item_factors"
 # ======== LOAD DATA =====================================
 
-def load_ratings(spark, path):    
-    df = spark.read.csv(path, header=True, inferSchema=True)    
-    df = df.select(
-        col("User-ID").alias("user_id").cast("integer"),
-        col("ISBN").alias("isbn"),
-        col("Book-Rating").alias("rating").cast("float")
+def load_ratings_from_postgres(spark):    
+    df = spark.read \
+        .jdbc(
+            url=JDBC_URL,
+            table="ratings",
+            properties=JDBC_PROPERTIES
+        )
+    
+    ratings = (
+        df.groupBy("user_id", "isbn")
+        .agg(F.avg("rating").alias("rating"))  # Average if multiple ratings
+        .filter(F.col("rating") >= MIN_RATING)  # Filter low ratings
     )
     
-    df = df.filter(
-        (col("user_id").isNotNull()) &
-        (col("isbn").isNotNull()) &
-        (col("rating").isNotNull()) &
-        (col("rating") >= 0)  
-    )
-    return df
+    return ratings
 
 # =========== INDEX USERS & ITEMS =======================
 
 def index_users_items(df):
     
+    #from str to int(needed for matrix factorization...)
+    #isbn: "0195153448"   → 0
+    #user_id: "23904" => 0
+
     user_indexer = StringIndexer(
         inputCol="user_id",
         outputCol="user_idx",
-        handleInvalid="skip"  # Skip unknown users
-    ).fit(df)
+        handleInvalid="skip"  
+    )
     
     item_indexer = StringIndexer(
         inputCol="isbn",
         outputCol="item_idx",
-        handleInvalid="skip"  # Skip unknown items
-    ).fit(df)
+        handleInvalid="skip"  
+    )
+
+    pipeline = Pipeline(stages=[user_indexer, item_indexer]) #chain transformation
+    fitted = pipeline.fit(ratings) #learns mapping from training data
+
+    #applies learned mapping to the data...
+    #Adds two new columns: `user_idx`, `item_idx`
+    indexed = fitted.transform(ratings).select(
+    "user_id", "isbn", "user_idx", "item_idx", "rating"
+    )
+
+    #create reverse mapping tables (for later, when we need real isbn and user id back....)
+    user_map = indexed.select("user_id", "user_idx").dropDuplicates()
+    items_map = indexed.select("isbn", "item_idx").dropDuplicates()
+
+    # select only var needed for als
+    data = (
+        indexed
+        .select(
+            F.col("user_idx").cast("int").alias("user_idx"),
+            F.col("item_idx").cast("int").alias("item_idx"),
+            F.col("rating").cast("float").alias("rating"),
+        )
+        .dropna(subset=["user_idx", "item_idx", "rating"])
+        .filter(F.col("rating") >= 0)
+        .filter(F.col("user_idx") >= 0)
+        .filter(F.col("item_idx") >= 0)
+    )
     
-    df_indexed = user_indexer.transform(df)
-    df_indexed = item_indexer.transform(df_indexed)
+    if data.rdd.isEmpty():
+        raise RuntimeError("❌ No training data after filtering!")
     
-    n_users = df_indexed.select("user_idx").distinct().count()
-    n_items = df_indexed.select("item_idx").distinct().count()
-        
-    return df_indexed, user_indexer, item_indexer
+    return 
 
 # =========== TRAIN ALS MODEL ==========================
 
-def train_als(train_df, rank=20, maxIter=10, regParam=0.1):
+def train_als(data, spark):
+    #Set checkpoint directory (required for iterative algorithms)
+    spark.sparkContext.setCheckpointDir("/tmp/spark-checkpoints")
     
     als = ALS(
-        userCol="user_idx",
-        itemCol="item_idx",
-        ratingCol="rating",
-        rank=rank,
-        maxIter=maxIter,
-        regParam=regParam,
-        implicitPrefs=False,  
-        coldStartStrategy="drop",  # Avoid NaNs for unknown users/items
-        nonnegative=False  # Allow negative factors
+        userCol="user_idx",           # Column with user indices
+        itemCol="item_idx",            # Column with item (book) indices
+        ratingCol="rating",            # Column with ratings
+        rank=rank,                     # Latent factors dimension (e.g., 20)
+        maxIter=maxIter,               # Training iterations (e.g., 10)
+        regParam=regParam,             # L2 regularization (e.g., 0.1)
+        implicitPrefs=False,           # False = explicit ratings (1-10 scale)
+        coldStartStrategy="drop",      # Drop predictions for unknown users/items
+        nonnegative=False              # Allow negative latent factors
     )
     
     model = als.fit(train_df)    
     return model
 
-# =========== EVALUATE MODEL ============================
+#====== SIMILARITES SAVE ============================
+def save_features(model, fitted):
 
-def evaluate_als(model, test_df):
-    
-    predictions = model.transform(test_df)    
-    predictions = predictions.filter(col("prediction").isNotNull())
-    
-    # RMSE (Root Mean Squared Error)
-    rmse_evaluator = RegressionEvaluator(
-        metricName="rmse",
-        labelCol="rating",
-        predictionCol="prediction"
-    )
-    rmse = rmse_evaluator.evaluate(predictions)
-    
-    # MAE (Mean Absolute Error)
-    mae_evaluator = RegressionEvaluator(
-        metricName="mae",
-        labelCol="rating",
-        predictionCol="prediction"
-    )
-    mae = mae_evaluator.evaluate(predictions)
-    
-    # R² (Coefficient of Determination)
-    r2_evaluator = RegressionEvaluator(
-        metricName="r2",
-        labelCol="rating",
-        predictionCol="prediction"
-    )
-    r2 = r2_evaluator.evaluate(predictions)
-    
-    print(f"✅ Evaluation Results:")
-    print(f"   RMSE: {rmse:.4f}")
-    print(f"   MAE:  {mae:.4f}")
-    print(f"   R²:   {r2:.4f}")
-    
-    return {"rmse": rmse, "mae": mae, "r2": r2}
+    #trained ALS MODEL => can be load for retraining or gen recs....
+    #ALS model = metadata, itemfactors, userfactors
+    #load it= ALSModel.load("models/als")
+    model.writes().overwrite().save(ALS_MODEL_PATH)
 
-# =========== SAVE ARTIFACTS ============================
+    #fitted INDEXERS pipeline...
+    #fitted stringindexer pipeline = mapping user_id => user_idx..... + isbn -
+    #PipelineModel.load("models/als_indexers")
+    fitted.write().overwrite().save(ALS_INDEXERS_PATH)
 
-def save_model_artifacts(model, user_indexer, item_indexer, base_path="models"):
+    #=== EMBEDDINGS ============
+    #latent vectors = dense vectors - capture preferences - core of ALS algo
+
+    #latent factors - users: dim depends on rank(setup)
+    model.userFactors.write\
+        .format("delta")\
+        .mode("overwrite")\
+        .save(DELTA_USER_FACTORS)
     
-    os.makedirs(base_path, exist_ok=True)
-    os.makedirs("delta", exist_ok=True)
-    
-    # 1. Save full model (for inference)
-    model_path = f"{base_path}/als_model"
-    model.write().overwrite().save(model_path)
-    
-    # 2. Save user factors to Delta Lake
-    user_factors_path = "delta/user_factors"
-    model.userFactors.write \
+    #latent factors - books
+    model.itemFactors.write\
         .format("delta") \
         .mode("overwrite") \
-        .save(user_factors_path)
+        .save(DELTA_ITEM_FACTORS)
+
+def generate_and_save_recommendations(model, users_map, items_map):
     
-    # 3. Save item factors to Delta Lake
-    item_factors_path = "delta/item_factors"
-    model.itemFactors.write \
+    #every user = top N recs books by ALS!
+    #return df: user_idx , recommendations [(item_idx, rating), (....)]
+    raw_user_recs = model.recommendForAllUsers(N_RECOMMENDATIONS)
+    
+    #converts nested structure to flat table
+    #before
+    """
+        user_idx | recommendations
+        ---------|----------------
+        0        | [(5, 8.3), (12, 8.1), (7, 7.9)]
+        1        | [(3, 9.2), (7, 8.9)]
+    """
+
+    #after
+    #user_idx | rec
+    """
+        ---------|------------------
+        0        | (item_idx=5, rating=8.3)
+        0        | (item_idx=12, rating=8.1)
+    """
+
+    user_recs = (
+        raw_user_recs
+        .withColumn("rec", F.explode("recommendations"))
+        .select(
+            F.col("user_idx"),
+            F.col("rec.item_idx").alias("item_idx"),
+            F.col("rec.rating").alias("als_score"),
+        )
+        .join(users_map, "user_idx")  # Map back to original user_id
+        .join(items_map, "item_idx")   # Map back to original ISBN
+        .select("user_id", "isbn", "als_score")
+    )
+
+    """
+    **After joins:**
+        user_id | isbn         | als_score
+        --------|--------------|----------
+        276725  | 0195153448   | 8.3
+        276725  | 0002005018   | 8.1
+        276725  | 0060973129   | 7.9
+        276726  | 0747532699   | 9.2
+    """
+    
+    # Save to Delta Lake
+    user_recs.write \
         .format("delta") \
         .mode("overwrite") \
-        .save(item_factors_path)
-    
-    # 4. Save indexers (CRITICAL for making predictions later!)
-    user_indexer_path = f"{base_path}/user_indexer"
-    user_indexer.write().overwrite().save(user_indexer_path)
-    
-    item_indexer_path = f"{base_path}/item_indexer"
-    item_indexer.write().overwrite().save(item_indexer_path)
+        .save(DELTA_USER_RECS) #to: delta/collaborative_recommendations/
 
 # =========== MAIN PIPELINE =============================
 
@@ -161,36 +214,26 @@ def main():
     
     try:
         # 1. Load data
-        df = load_ratings(spark,"data/Ratings.csv")
+        ratings = load_ratings_from_postgres(spark)
         
         # 2. Index users and items
-        df_indexed, user_indexer, item_indexer = index_users_items(df)
+        data, fitted, users_map, items_map = index_and_prepare_data(ratings)
         
         # 3. Split into train/test (80/20)
-        print("\n✂️  Splitting data (80% train, 20% test)...")
-        train_df, test_df = df_indexed.randomSplit([0.8, 0.2], seed=42)
-        print(f"   Train: {train_df.count():,} ratings")
-        print(f"   Test:  {test_df.count():,} ratings")
+        train_data, test_data = data.randomSplit([0.8, 0.2], seed=42)
         
         # 4. Train model
-        model = train_als(
-            train_df,
-            rank=20,      # Number of latent factors
-            maxIter=10,   # Number of iterations
-            regParam=0.1  # Regularization to prevent overfitting
-        )
+        model = train_als(train_data, spark)
         
         # 5. Evaluate on test set
-        metrics = evaluate_als(model, test_df)
+        metrics = evaluate_als(model, test_data)
         
         # 6. Save everything
-        save_model_artifacts(model, user_indexer, item_indexer)
-        
+        save_model_artifacts(model, fitted)
+        generate_and_save_recommendations(model, users_map, items_map)
+
         print(" COMPLETE!")
-        print(f"\n Final Metrics:")
-        print(f"   RMSE: {metrics['rmse']:.4f}")
-        print(f"   MAE:  {metrics['mae']:.4f}")
-        print(f"   R²:   {metrics['r2']:.4f}")
+
         
     except Exception as e:
         print(f"\n❌ ERROR: {e}")

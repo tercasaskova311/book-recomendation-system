@@ -1,44 +1,41 @@
 """
-content similarity feature extraction (Transforms book data into ML-ready features for content-based recommendations)
-n.pages, description, category, language => into one vector space
+Complete Content-Based Recommendation Pipeline
+1. Extract features from books (TF-IDF, categories, metadata)
+2. Apply weights (70% description, 20% categories, 10% metadata)
+3. Compute pairwise similarity using LSH
+4. Save features and similarities to Delta Lake
 """
+
 import os
 import sys
 import re
-import traceback
+import numpy as np
 from dotenv import load_dotenv
+import traceback
+
 from pyspark.sql import SparkSession
 from pyspark.sql.functions import (
-    col, 
-    when, 
-    size, 
-    lower, 
-    array_join, 
-    lit,           
-    array,        
-    length,
-    regexp_replace,
-    trim,
-    explode,       
-    split,
-    min,
-    max,
-    substring      
+    col, when, size, lower, array_join, lit, array, length,
+    regexp_replace, trim, explode, split, min, max, udf
 )
-from pyspark.sql.types import ArrayType, StringType, FloatType, DoubleType
+from pyspark.sql.types import (
+    ArrayType, StringType, FloatType, DoubleType, 
+    StructType, StructField
+)
 from pyspark.ml.feature import (
-    Tokenizer, 
-    StopWordsRemover, 
-    HashingTF, 
-    IDF,
-    MinMaxScaler,
-    StringIndexer,
-    OneHotEncoder,
-    VectorAssembler
+    Tokenizer, StopWordsRemover, HashingTF, IDF,
+    StringIndexer, OneHotEncoder, VectorAssembler,
+    BucketedRandomProjectionLSH
 )
+from pyspark.ml.linalg import Vectors, VectorUDT
 from pyspark.ml import Pipeline
 
 load_dotenv()
+
+# Add project root to path
+project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, project_root)
+
 from config import (
     JDBC_URL, 
     JDBC_PROPERTIES,
@@ -47,29 +44,27 @@ from config import (
     CATEGORY_TOP_N,
     POSTGRES_JDBC_JAR  
 )
-sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
-from common.spark_session import get_spark_session, _in_spark_submit, create_spark
+from common.spark_session import get_spark_session
 
 # =========== DATA LOADING ============================================
 
-def load_books_from_postgres(spark): #Loading books from PostgreSQL
+def load_books (spark): 
     df = spark.read \
         .jdbc(
             url=JDBC_URL,
             table="books",
             properties=JDBC_PROPERTIES
         )
-    
-    print(f" Loaded {df.count()} books")    
     return df
 
 # ========= DESCRIPTIONS ===============================================
 
-def process_descriptions(df): #book descriptions into TF-IDF vectors - Filter books with descriptions - Clean text - Tokenize - stop words - Compute TF-IDF    
+def process_descriptions(df):   
     df_with_desc = df.filter(
         (col("description").isNotNull()) & 
         (length(col("description")) >= MIN_DESCRIPTION_LENGTH)
-    )    
+    )   
+
     df_clean = df_with_desc.withColumn(
         "description_clean",
         lower(regexp_replace(col("description"), "[^a-zA-Z\\s]", ""))
@@ -77,10 +72,7 @@ def process_descriptions(df): #book descriptions into TF-IDF vectors - Filter bo
     
     tokenizer = Tokenizer(inputCol="description_clean", outputCol="words")
     
-    stop_words_remover = StopWordsRemover(
-        inputCol="words",
-        outputCol="words_filtered"
-    )
+    stop_words_remover = StopWordsRemover(inputCol="words", outputCol="words_filtered")
     
     hashing_tf = HashingTF(
         inputCol="words_filtered",
@@ -88,10 +80,7 @@ def process_descriptions(df): #book descriptions into TF-IDF vectors - Filter bo
         numFeatures=TF_IDF_NUM_FEATURES
     )
     
-    idf = IDF(
-        inputCol="raw_features",
-        outputCol="tfidf_features"
-    )
+    idf = IDF(inputCol="raw_features", outputCol="tfidf_features")
     
     pipeline = Pipeline(stages=[
         tokenizer,
@@ -103,7 +92,6 @@ def process_descriptions(df): #book descriptions into TF-IDF vectors - Filter bo
     model = pipeline.fit(df_clean)
     df_tfidf = model.transform(df_clean)
     
-    print("TF-IDF processing complete")
     return df_tfidf.select("isbn", "tfidf_features")
 
 # ======== CATEGORY ENCODING ============================================
@@ -188,10 +176,7 @@ def encode_language(df):
     
     df_lang = df.filter(col("language").isNotNull())
     
-    indexer = StringIndexer(
-        inputCol="language",
-        outputCol="language_index"
-    )
+    indexer = StringIndexer(inputCol="language", outputCol="language_index")
     
     encoder = OneHotEncoder(
         inputCols=["language_index"],
@@ -208,72 +193,176 @@ def encode_language(df):
 
 # =================== COMBINE EVERYTHING =========================================
 
-def combine_features(df, tfidf_df, cat_df, page_df, lang_df):
-    
+def combine_features(df, tfidf_df, cat_df, page_df, lang_df, tfidf_weight=0.7, category_weight=0.2, metadata_weight=0.1):
+
     df_combined = df \
         .join(tfidf_df, "isbn", "left") \
         .join(cat_df, "isbn", "left") \
         .join(page_df, "isbn", "left") \
         .join(lang_df, "isbn", "left")
     
-    cat_cols = [c for c in cat_df.columns if c.startswith("cat_")]
+    cat_cols = [c for c in cat_df.columns if c.startswith("cat_")]    
+    n_categories = len(cat_cols)  
+    
+    sample_tfidf = tfidf_df.select("tfidf_features").first()
+    n_tfidf = sample_tfidf['tfidf_features'].size  
+    
+    sample_lang = lang_df.select("language_encoded").first()
+    n_language = sample_lang['language_encoded'].size  
+    
+    n_page = 1  
+    n_metadata = n_page + n_language  
 
-    # Assemble all features into one vector
     assembler = VectorAssembler(
         inputCols=cat_cols + ["tfidf_features", "page_count_normalized", "language_encoded"],
         outputCol="features",
         handleInvalid="skip"  # Skip rows with invalid values
     )
+
+    df_assembled = assembler.transform(df_combined) 
+
+    def create_weighted_features(features_vector):
+
+        if features_vector is None:
+            return None
+            
+        arr = np.array(features_vector.toArray())  
+        cat_start = 0
+        cat_end = n_categories
+            
+        tfidf_start = cat_end
+        tfidf_end = tfidf_start + n_tfidf
+            
+        meta_start = tfidf_end
+        meta_end = meta_start + n_metadata
+            
+        arr[cat_start:cat_end] *= category_weight     
+        arr[tfidf_start:tfidf_end] *= tfidf_weight    
+        arr[meta_start:meta_end] *= metadata_weight   
+            
+        return Vectors.dense(arr.tolist())
+        
+    weight_udf = udf(create_weighted_features, VectorUDT())
+        
+    df_weighted = df_assembled.withColumn(
+        "features",
+        weight_udf("features_unweighted")
+    )
+        
+    return df_weighted.select("isbn", "features_unweighted").withColumnRenamed("features_weighted", "features")
+
+
+# ========== COSINE SIMILARITY COMPUTATION ===========================
+
+def compute_pairwise_similarity_lsh(spark, df, top_k=50): #using LSH (Locality-Sensitive Hashing) bucketedRandomProjectionLSH works well for cosine similarity
     
-    df_final = assembler.transform(df_combined)    
-    return df_final.select("isbn", "features")
+    lsh = BucketedRandomProjectionLSH(
+        inputCol="features",
+        outputCol="hashes",
+        bucketLength=2.0,  # Tune this: smaller = more accurate but slower
+        numHashTables=3     # More tables = more accurate but slower
+    )
+    
+    model = lsh.fit(df)    
+    similarities = []
+    books = df.select("isbn", "features").collect()
+    total_books = len(books)
+    
+    for i, book in enumerate(books):
+        if i % 100 == 0:
+            print(f"   Processing book {i}/{total_books}...")
+        
+        isbn = book['isbn']
+        features = book['features']
+        
+        neighbors = model.approxNearestNeighbors(
+            df, 
+            features, 
+            top_k + 1,  # +1 because it includes itself
+            distCol="distance"
+        )
+        
+        # LSH returns Euclidean distance; convert to cosine similarity = similarity ≈ 1 - (distance² / 2)
+        neighbor_data = neighbors.select("isbn", "distance") \
+            .filter(col("isbn") != isbn) \
+            .limit(top_k) \
+            .collect()
+        
+        similar_books = [
+            {"isbn": n['isbn'], "similarity": float(1 - (n['distance']**2 / 2))}
+            for n in neighbor_data
+        ]
+        
+        similarities.append((isbn, similar_books))
+    
+    # Create DataFrame
+    schema = StructType([
+        StructField("isbn", StringType(), False),
+        StructField("similar_books", ArrayType(
+            StructType([
+                StructField("isbn", StringType(), False),
+                StructField("similarity", FloatType(), False)
+            ])
+        ), False)
+    ])
+    
+    result_df = spark.createDataFrame(similarities, schema)    
+    return result_df
 
 # =========== SAVE TO POSTGRESQL ==========================================
 
-def save_to_delta(df):
+def save_features(df):
     df.write \
       .format("delta") \
       .mode("overwrite") \
       .save("/Users/terezasaskova/Desktop/book-recomendation-system/delta/book_features")
 
-
     print(" Features saved to Delta Lake")
 
-# ================= MAIN ===========================================
+# ========== SAVE RESULTS ============================================
 
-def main():
+def save_similarities(df, output_path="delta/book_similarities"):
+    
+    df.write \
+        .format("delta") \
+        .mode("overwrite") \
+        .save("/Users/terezasaskova/Desktop/book-recomendation-system/delta/similarities")
+    
+    print("Similarities saved to Delta Lake")
+
+# ========== MAIN PIPELINE ===========================================
+
+def main():   
     spark = get_spark_session(
-        app_name="BookRecommendation-content-similarity",
+        app_name="BookFeaturesAndSimilarity",
+        enable_delta=True,
         extra_conf={
-            "spark.sql.extensions": "io.delta.sql.DeltaSparkSessionExtension",
-            "spark.sql.catalog.spark_catalog": "org.apache.spark.sql.delta.catalog.DeltaCatalog"
+            "spark.sql.shuffle.partitions": "50"
         }
     )
         
     try:
-        df = load_books_from_postgres(spark)
-
+        df = load_books(spark)
         tfidf_df = process_descriptions(df)
         cat_df = process_categories(df)
         page_df = normalize_page_count(df)
         lang_df = encode_language(df)
         
         df_final = combine_features(df, tfidf_df, cat_df, page_df, lang_df)
-        
-        save_to_delta(df_final)
-        
-        print("COMPLETE!")
-    
-    except Exception as e:
-        print(f"❌ Error: {e}")       
-        traceback.print_exc()         
+        save_features(df_final)
+            
+        similarities = compute_pairwise_similarity_lsh(spark, df_final, top_k=50)        
+        save_similarities(similarities)        
+        print("SIMILARITY COMPUTATION COMPLETE!")
 
+        
+    except Exception as e:
+        print(f"\n❌ ERROR: {e}")
+        traceback.print_exc()
+        
     finally:
         spark.stop()
+        print("\n Spark session stopped")
 
-if __name__ == "__main__":
+if __name__ == "__main__":  
     main()
-
-
-#spark.read.format("delta").load("/delta/book_features").show(5)
-
