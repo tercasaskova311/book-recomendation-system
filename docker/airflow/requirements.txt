@@ -2,12 +2,11 @@
 apache-airflow-providers-apache-spark==4.7.1
 
 # Spark & Data Processing
-pyspark==3.5.0
-delta-spark==3.0.0
+pyspark==3.5.5           
+delta-spark==3.3.0       
 
 # Database
 psycopg2-binary==2.9.9
-sqlalchemy==2.0.23
 
 # API & Web
 requests==2.31.0
@@ -23,7 +22,3 @@ python-dotenv==1.0.0
 pyyaml==6.0.1
 tqdm==4.66.1
 tenacity==8.2.3
-
-# Testing (optional for Airflow)
-# pytest==7.4.3
-# pytest-cov==4.1.0

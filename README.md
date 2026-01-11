@@ -4,6 +4,227 @@ Book recommendation system based by the content and reviews of other users.
 A production-grade hybrid book recommendation system combining collaborative filtering (user behavior) and content-based filtering (book metadata) to deliver personalized book recommendations. The system processes 270K books and 1M ratings from Kaggle, enriched with Google Books API data, using offline batch processing for model training and online serving for fast user queries.
 
 
+---
+
+## Orchestration
+
+### Airflow DAGs
+
+#### `new_data.py`
+**Purpose**: Daily enrichment of unenriched books
+
+**Schedule**: 1:00 AM daily
+
+**Workflow**:
+```python
+1. Query PostgreSQL for unenriched books (enriched=FALSE)
+2. LIMIT 100 (Google API quota)
+3. For each book:
+   - Fetch metadata from Google Books API
+   - UPDATE books SET description=..., enriched=TRUE
+4. Track success rate
+```
+
+**Why 100/day**: Google Books API free tier = 1,000 requests/day (save quota)
+
+---
+
+#### `recommendation.py`
+**Purpose**: Trigger Spark ML pipeline when new data arrives
+
+**Schedule**: 2:00 AM daily
+
+**Workflow**:
+```python
+1. Check data threshold:
+   - new_ratings > 1,000 OR
+   - new_books > 100
+   
+2. IF threshold met:
+   - Run content_similarity.py (Spark)
+   - Run user_preferences.py (Spark)
+   - Run hybrid_recs.py (Spark)
+   
+3. ELSE:
+   - Skip (no retraining needed)
+```
+
+**Dependency Graph**:
+```
+check_threshold
+       ↓
+   ┌───┴───┐
+   ↓       ↓
+content  collaborative
+   ↓       ↓
+   └───┬───┘
+       ↓
+  hybrid_recs
+```
+
+---
+
+## Development Guide
+
+### Setup
+
+1. **Clone & Configure**:
+   ```bash
+   git clone <repo>
+   cd book-recommendation-system
+   cp .env.development.example .env.development
+   # Edit .env.development with your configs
+   ```
+
+2. **Build & Start**:
+   ```bash
+   make init  # Builds images + starts all services
+   ```
+
+3. **Access Services**:
+   - Airflow UI: http://localhost:8081
+   - Spark UI: http://localhost:8080
+   - Streamlit: http://localhost:8501
+   - PostgreSQL: localhost:5060
+
+### Makefile Commands
+
+```bash
+make up              # Start all services
+make down            # Stop all services
+make restart         # Restart everything
+
+make spark-logs      # View Spark logs
+make airflow-logs    # View Airflow logs
+make dashboard-logs  # View Streamlit logs
+
+make status          # Check container status
+```
+
+### File Structure
+
+```
+book-recommendation-system/
+├── airflow/
+│   ├── dags/
+│   │   ├── new_data.py           # Daily enrichment
+│   │   └── recommendation.py     # ML pipeline trigger
+│   └── config/
+│       └── pipeline_config.py    # Thresholds, hyperparameters
+├── spark/
+│   ├── content_similarity.py     # TF-IDF + LSH
+│   ├── user_preferences.py       # ALS training
+│   └── hybrid_recs.py            # Score combination
+├── src/
+│   ├── database/
+│   │   └── schema.sql            # PostgreSQL schema
+│   └── ingestion/
+│       └── load_data.py          # Initial data load
+├── app/
+│   └── dashboard.py              # Streamlit UI
+├── common/
+│   └── spark_session.py          # Shared Spark config
+├── delta/                        # Delta Lake storage
+│   ├── book_features/
+│   ├── similarities/
+│   ├── collaborative_recommendations/
+│   └── final_recommendations/
+├── docker/
+│   ├── airflow/
+│   ├── spark/
+│   └── dashboard/
+├── config.py                     # Global config
+├── fetching_data.py              # Google Books API client
+├── data_final.py                 # Initial enrichment script
+└── docker-compose.yml            # Service orchestration
+```
+
+---
+
+## Performance
+
+### Data Volume
+- **Books**: 270K (78 enriched with full features)
+- **Users**: 278K
+- **Ratings**: 1M
+- **Recommendations**: 100 per user × 278K users = 27.8M pre-computed
+
+### Processing Times (Estimated)
+- Content features: ~5 min
+- ALS training: ~10 min
+- Similarity computation: ~15 min (LSH)
+- Hybrid recommendations: ~5 min
+- **Total pipeline**: ~35 minutes
+
+### Storage
+- Delta Lake: ~500 MB (features + similarities)
+- PostgreSQL: ~200 MB (source data)
+
+---
+
+## Future Enhancements
+
+1. **Real-time Feedback Loop**:
+   - User rates book → Immediate re-ranking
+   - Online learning (incremental ALS updates)
+
+2. **Advanced Features**:
+   - Book cover image embeddings (CNN)
+   - Reading level/difficulty scoring
+   - Author similarity networks
+
+3. **Scalability**:
+   - Move to AWS EMR / Databricks for Spark
+   - PostgreSQL → AWS RDS
+   - Add Redis cache for hot recommendations
+
+4. **A/B Testing**:
+   - Test different α values (collaborative vs. content weight)
+   - Evaluate diversity vs. accuracy trade-off
+
+---
+
+## Troubleshooting
+
+### Common Issues
+
+**Spark job fails**:
+```bash
+# Check Spark logs
+make spark-logs
+
+# Common fix: Increase memory
+# Edit docker-compose.yml:
+SPARK_DRIVER_MEMORY=4g
+SPARK_EXECUTOR_MEMORY=4g
+```
+
+**PostgreSQL connection errors**:
+```bash
+# Verify DB is running
+docker ps | grep postgres
+
+# Test connection
+docker exec -it book-recs-postgres psql -U terezasaskova -d book_recommendations
+```
+
+**Airflow DAG not running**:
+```bash
+# Check scheduler logs
+make airflow-logs
+
+# Restart Airflow
+make airflow-down && make airflow-up
+```
+
+---
+
+## Credits
+
+- **Dataset**: Kaggle Book-Crossing Dataset
+- **Enrichment**: Google Books API
+- **Framework**: Apache Spark, Airflow, Delta Lake
+- **Author**: [Your Name]
 ┌─────────────────────────────────────────────────────────────────────────┐
 │                           SYSTEM ARCHITECTURE                           │
 └─────────────────────────────────────────────────────────────────────────┘

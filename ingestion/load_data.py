@@ -68,7 +68,7 @@ def create_database():
 def create_tables():
     conn = get_connection()
     cursor = conn.cursor()    
-    with open('src/database/schema.sql', 'r') as f:
+    with open('ingestion/database/schema.sql', 'r') as f:
         sql_script = f.read()
     
     cursor.execute(sql_script)
