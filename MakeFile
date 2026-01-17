@@ -1,113 +1,207 @@
-#var def: dockerfiles for aiflow, spark, streamlit
+# Variable definitions
 SPARK_PATH=./docker/spark
 AIRFLOW_PATH=./docker/airflow
 DASHBOARD_PATH=./docker/dashboard
 
+# Load environment variables
+-include .env.development
+export
 
-#setting up comands
+.PHONY: help init build-all build-spark build-airflow build-dashboard \
+        up down restart logs status clean network-create network-remove \
+        spark-up spark-down spark-logs spark-status \
+        airflow-up airflow-down airflow-logs airflow-status \
+        dashboard-up dashboard-down dashboard-logs \
+        postgres-up postgres-down postgres-logs
 
-.PHONY: help init build up down restart logs status clean \
-        db-init db-migrate db-shell spark-shell airflow-ui \
-        test validate
+# ============ HELP ============
+help:
+	@echo "Book Recommendation System - Docker Commands"
+	@echo ""
+	@echo "Setup Commands:"
+	@echo "  make init              - Full initialization (network + build + up)"
+	@echo "  make build-all         - Build all Docker images"
+	@echo "  make network-create    - Create shared Docker network"
+	@echo ""
+	@echo "Service Commands:"
+	@echo "  make up                - Start all services"
+	@echo "  make down              - Stop all services"
+	@echo "  make restart           - Restart all services"
+	@echo ""
+	@echo "Individual Services:"
+	@echo "  make postgres-up       - Start PostgreSQL"
+	@echo "  make spark-up          - Start Spark cluster"
+	@echo "  make airflow-up        - Start Airflow"
+	@echo "  make dashboard-up      - Start Streamlit dashboard"
+	@echo ""
+	@echo "Logs & Status:"
+	@echo "  make logs              - Show logs from all services"
+	@echo "  make status            - Show status of all services"
+	@echo "  make spark-logs        - Show Spark logs"
+	@echo "  make airflow-logs      - Show Airflow logs"
+	@echo ""
+	@echo "Cleanup:"
+	@echo "  make clean             - Stop and remove all containers + network"
 
+# ============ NETWORK MANAGEMENT ============
+network-create:
+	@echo "Creating shared network..."
+	@docker network inspect book-recs-network >/dev/null 2>&1 || \
+		docker network create book-recs-network
+	@echo "✓ Network created: book-recs-network"
 
-# Load env vars from .env
-#ifenq = if not equal
-ifneq (,$(wildcard .env.development))
-include .env.development #load all key var: f.e. => DB_HOST=postgres => $(DB_HOST)
+network-remove:
+	@echo "Removing shared network..."
+	@docker network rm book-recs-network 2>/dev/null || true
+	@echo "✓ Network removed"
 
-#sed = stream editor
-#'s/=.*//' => extract variables beofre = 
-export $(shell sed 's/=.*//' .env.development) 
-
-# WHY EXPORT?
-  # - "include" makes variables available to Make
-  # - "export" makes them available to shell commands (docker, python, etc.)
-  # ══════════════════════════════════════════
-endif 
-
-#===== SPARK COMMANDS ============
-#usage: make build-spark-image
-
-build-spark-image: #target name - no dependencies 
+# ============ BUILD COMMANDS ============
+build-spark:
+	@echo "Building Spark image..."
 	docker build -t $(SPARK_IMAGE_NAME):$(SPARK_IMAGE_TAG) $(SPARK_PATH)/
+	@echo "✓ Spark image built"
 
-spark-up:
-	@$(MAKE) build-spark-image #cleaner output in terminal....
-	docker compose --env-file .env.development -f $(SPARK_PATH)/docker-compose.yml up -d --build #up: create + start container, d: detached mode- run in background, build: rebuild images before starting containers
+build-airflow:
+	@echo "Building Airflow image..."
+	docker build -t $(AIRFLOW_IMAGE_NAME):$(AIRFLOW_IMAGE_TAG) $(AIRFLOW_PATH)/
+	@echo "✓ Airflow image built"
 
-spark-down: #down: can restart later vs down: stops + removes....
+build-dashboard:
+	@echo "Building Dashboard image..."
+	docker build -t $(DASHBOARD_IMAGE_NAME):$(DASHBOARD_IMAGE_TAG) $(DASHBOARD_PATH)/
+	@echo "✓ Dashboard image built"
+
+build-all: build-spark build-airflow build-dashboard
+	@echo "✓ All images built successfully"
+
+# ============ POSTGRES COMMANDS ============
+postgres-up: network-create
+	@echo "Starting PostgreSQL..."
+	docker compose --env-file .env.development up -d postgres
+	@echo "Waiting for PostgreSQL to be healthy..."
+	@timeout 60 sh -c 'until docker exec book-recs-postgres pg_isready -U $(DB_USER); do sleep 2; done'
+	@echo "✓ PostgreSQL is ready"
+
+postgres-down:
+	@echo "Stopping PostgreSQL..."
+	docker compose --env-file .env.development down
+	@echo "✓ PostgreSQL stopped"
+
+postgres-logs:
+	docker compose --env-file .env.development logs -f postgres
+
+# ============ SPARK COMMANDS ============
+spark-up: network-create build-spark
+	@echo "Starting Spark cluster..."
+	docker compose --env-file .env.development -f $(SPARK_PATH)/docker-compose.yml up -d
+	@echo "Waiting for Spark Master to be healthy..."
+	@sleep 10
+	@echo "✓ Spark cluster started"
+	@echo "   Spark Master UI: http://localhost:8080"
+
+spark-down:
+	@echo "Stopping Spark cluster..."
 	docker compose -f $(SPARK_PATH)/docker-compose.yml down
+	@echo "✓ Spark cluster stopped"
 
-spark-logs: #with -f: 	#   Shows existing logs + keeps streaming new ones
+spark-logs:
 	docker compose -f $(SPARK_PATH)/docker-compose.yml logs -f
 
-spark-status: #ps: list containers(name, status, ports)
+spark-status:
 	docker compose -f $(SPARK_PATH)/docker-compose.yml ps
 
-
-#====== AIRFLOW SET UP ======================================
-build-airflow-image:
-	docker build -t $(AIRFLOW_IMAGE_NAME):$(AIRFLOW_IMAGE_TAG) $(AIRFLOW_PATH)/
-
-airflow-up:
-	@$(MAKE) build-airflow-image
-	docker compose --env-file .env.development -f $(AIRFLOW_PATH)/docker-compose.yml up -d --build
+# ============ AIRFLOW COMMANDS ============
+airflow-up: network-create build-airflow postgres-up
+	@echo "Starting Airflow..."
+	docker compose --env-file .env.development -f $(AIRFLOW_PATH)/docker-compose.yml up -d
+	@echo "Waiting for Airflow to initialize..."
+	@sleep 15
+	@echo "✓ Airflow started"
+	@echo "   Airflow UI: http://localhost:8082"
+	@echo "   Default login: admin / admin"
 
 airflow-down:
+	@echo "Stopping Airflow..."
 	docker compose -f $(AIRFLOW_PATH)/docker-compose.yml down
+	@echo "✓ Airflow stopped"
 
 airflow-logs:
 	docker compose -f $(AIRFLOW_PATH)/docker-compose.yml logs -f
 
+airflow-status:
+	docker compose -f $(AIRFLOW_PATH)/docker-compose.yml ps
 
-#===== STREAMLIT SETUP ======================
-build-dashboard-image:
-	docker build -t $(DASHBOARD_IMAGE_NAME):$(DASHBOARD_IMAGE_TAG) $(DASHBOARD_PATH)/
-
-dashboard-up:
-	@$(MAKE) build-dashboard-image
-	docker compose --env-file .env.development -f $(DASHBOARD_PATH)/docker-compose.yml up -d --build
+# ============ DASHBOARD COMMANDS ============
+dashboard-up: network-create build-dashboard
+	@echo "Starting Streamlit dashboard..."
+	docker compose --env-file .env.development -f $(DASHBOARD_PATH)/docker-compose.yml up -d
+	@echo "✓ Dashboard started"
+	@echo "   Dashboard UI: http://localhost:8501"
 
 dashboard-down:
+	@echo "Stopping dashboard..."
 	docker compose -f $(DASHBOARD_PATH)/docker-compose.yml down
+	@echo "✓ Dashboard stopped"
 
 dashboard-logs:
 	docker compose -f $(DASHBOARD_PATH)/docker-compose.yml logs -f
 
-#====== GENERAL COMMANDS ================================
-#up = starts all services(make up)
-up: spark-up airflow-up dashboard-up
+# ============ COMBINED COMMANDS ============
+up: postgres-up spark-up airflow-up dashboard-up
+	@echo ""
+	@echo "================================================"
+	@echo "✓ All services started successfully!"
+	@echo "================================================"
+	@echo "Access points:"
+	@echo "  - PostgreSQL:  localhost:$(DB_PORT)"
+	@echo "  - Spark UI:    http://localhost:8080"
+	@echo "  - Airflow UI:  http://localhost:8082 (admin/admin)"
+	@echo "  - Dashboard:   http://localhost:8501"
+	@echo "================================================"
 
-#make down
-down:  spark-down airflow-down dashboard-down 
+down: dashboard-down airflow-down spark-down postgres-down
+	@echo "✓ All services stopped"
 
 restart: down up
 
-#show recent logs from all services (make logs)
-
+# ============ LOGS & STATUS ============
 logs:
-	@echo "\n--- Spark Logs ---"
-	docker compose -f $(SPARK_PATH)/docker-compose.yml logs --tail=20
-	@echo "\n--- Airflow Logs ---"
-	docker compose -f $(AIRFLOW_PATH)/docker-compose.yml logs --tail=20
-	@echo "\n--- Dashboard Logs ---";
-	docker compose -f $(DASHBOARD_PATH)/docker-compose.yml logs --tail=20
+	@echo "\n=== PostgreSQL Logs ==="
+	@docker compose --env-file .env.development logs --tail=20 postgres 2>/dev/null || echo "PostgreSQL not running"
+	@echo "\n=== Spark Logs ==="
+	@docker compose -f $(SPARK_PATH)/docker-compose.yml logs --tail=20 2>/dev/null || echo "Spark not running"
+	@echo "\n=== Airflow Logs ==="
+	@docker compose -f $(AIRFLOW_PATH)/docker-compose.yml logs --tail=20 2>/dev/null || echo "Airflow not running"
+	@echo "\n=== Dashboard Logs ==="
+	@docker compose -f $(DASHBOARD_PATH)/docker-compose.yml logs --tail=20 2>/dev/null || echo "Dashboard not running"
 
 status:
-	@echo "\n--- Spark Status ---"
-	docker compose -f $(SPARK_PATH)/docker-compose.yml ps
-	@echo "\n--- Airflow Status ---"
-	docker compose -f $(AIRFLOW_PATH)/docker-compose.yml ps
-	@echo "\n--- Dashboard Status ---"
-	docker compose -f $(DASHBOARD_PATH)/docker-compose.yml ps
+	@echo "\n=== PostgreSQL Status ==="
+	@docker compose --env-file .env.development ps 2>/dev/null || echo "PostgreSQL not running"
+	@echo "\n=== Spark Status ==="
+	@docker compose -f $(SPARK_PATH)/docker-compose.yml ps 2>/dev/null || echo "Spark not running"
+	@echo "\n=== Airflow Status ==="
+	@docker compose -f $(AIRFLOW_PATH)/docker-compose.yml ps 2>/dev/null || echo "Airflow not running"
+	@echo "\n=== Dashboard Status ==="
+	@docker compose -f $(DASHBOARD_PATH)/docker-compose.yml ps 2>/dev/null || echo "Dashboard not running"
 
-# ===== FULL INITIALIZATION ================
-#make init
-init:
-#start airflow first! - needs in init..., built spark explicitely 
-	@$(MAKE) airflow-up
-	@docker compose -f $(SPARK_PATH)/docker-compose.yml build
-	@$(MAKE) spark-up
-	@$(MAKE) dashboard-up
-	@$(MAKE) status
+# ============ INITIALIZATION ============
+init: network-create build-all up
+	@echo ""
+	@echo "================================================"
+	@echo "✓ Initialization complete!"
+	@echo "================================================"
+	@echo "Next steps:"
+	@echo "  1. Load data: python ingestion/load_data.py"
+	@echo "  2. Run Spark jobs manually or via Airflow"
+	@echo "  3. Open dashboard: http://localhost:8501"
+	@echo "================================================"
+
+# ============ CLEANUP ============
+clean: down network-remove
+	@echo "Removing containers and volumes..."
+	@docker compose --env-file .env.development down -v 2>/dev/null || true
+	@docker compose -f $(SPARK_PATH)/docker-compose.yml down -v 2>/dev/null || true
+	@docker compose -f $(AIRFLOW_PATH)/docker-compose.yml down -v 2>/dev/null || true
+	@docker compose -f $(DASHBOARD_PATH)/docker-compose.yml down -v 2>/dev/null || true
+	@echo "✓ Cleanup complete"

@@ -8,7 +8,6 @@ services:
     volumes:
       - postgres-db-volume:/var/lib/postgresql/data
     networks:
-      - airflow-network
 
   airflow-webserver:
     image: ${AIRFLOW_IMAGE_NAME}:${AIRFLOW_IMAGE_TAG}
@@ -29,7 +28,6 @@ services:
       #http://localhost:8082/
     command: webserver
     networks:
-      - airflow-network
 
   airflow-scheduler:
     image: ${AIRFLOW_IMAGE_NAME}:${AIRFLOW_IMAGE_TAG}
@@ -57,7 +55,6 @@ services:
       - ../../.hf-cache:/opt/airflow/.cache/huggingface
     command: scheduler
     networks:
-      - airflow-network
 
   airflow-init:
     image: ${AIRFLOW_IMAGE_NAME}:${AIRFLOW_IMAGE_TAG}
@@ -72,9 +69,6 @@ services:
       - ../../spark:/opt/spark_jobs
       - ../../:/opt/project
     entrypoint: /bin/bash
-    command: -c "airflow db init && airflow users create --username ${POSTGRES_USER} --password ${POSTGRES_PASSWORD} --firstname ${AIRFLOW_ADMIN_USER_FIRSTNAME} --lastname ${AIRFLOW_ADMIN_USER_LASTNAME} --role ${AIRFLOW_ADMIN_USER_ROLE} --email ${AIRFLOW_ADMIN_USER_EMAIL}"
-    networks:
-      - airflow-network
 
 networks:
   airflow-network:
