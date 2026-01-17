@@ -1,8 +1,27 @@
-FROM bitnami/spark:3.5.3
+FROM apache/spark:3.5.0
 
 USER root
 
-# Copy the requirements.txt into the image
-COPY ./requirements.txt /
+# Install Python pip
+RUN apt-get update && \
+    apt-get install -y python3-pip && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
 
-RUN pip install --no-cache-dir -r /requirements.txt
+# Copy requirements
+COPY ./requirements.txt /tmp/requirements.txt
+
+# Install Python dependencies
+RUN pip3 install --no-cache-dir -r /tmp/requirements.txt
+
+# Set Python environment
+ENV PYSPARK_PYTHON=python3
+ENV PYSPARK_DRIVER_PYTHON=python3
+
+# Create directories
+RUN mkdir -p /opt/project /opt/project/delta /opt/project/data && \
+    chown -R spark:spark /opt/project
+
+USER spark
+
+WORKDIR /opt/spark

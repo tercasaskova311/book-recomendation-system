@@ -2,27 +2,12 @@
 - fetching data from google books api
 
 ## load_data.py
-- creating sql schema and est postgres db
+- creating sql schema and postgres db
 - loading kaggle csv files into postgres
 
 ## ingestion.py
 - combining 1k books from kaggle books.csv with google books api metadata 
 - enriching a pure metadata without any content related info by description, genre, pages, language, ...
-
-# Book Recommendation System Documentation
-
-A production-grade hybrid recommendation system combining collaborative filtering and content-based filtering to deliver personalized book recommendations.
-
----
-
-## Table of Contents
-
-1. [System Overview](#system-overview)
-2. [Architecture](#architecture)
-3. [Data Pipeline](#data-pipeline)
-4. [ML Components](#ml-components)
-5. [Serving Layer](#serving-layer)
-6. [Development Guide](#development-guide)
 
 ---
 

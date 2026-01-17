@@ -1,4 +1,4 @@
-FROM apache/airflow:2.9.0
+FROM apache/airflow:2.9.0-python3.11
 
 USER root
 
@@ -10,12 +10,11 @@ RUN apt-get update && \
     apt-get install -y openjdk-17-jdk curl ca-certificates unzip git wget ffmpeg && \
     apt-get clean && rm -rf /var/lib/apt/lists/*
 
-# Install Apache Spark 4.1.1 (latest stable)
-RUN curl -fsSL https://archive.apache.org/dist/spark/spark-3.5.5/spark-3.5.5-bin-hadoop3.tgz \
-    | tar -xz -C /opt && \
-    ln -s /opt/spark-3.5.5-bin-hadoop3 /opt/spark
-
-
+RUN curl -fLo /tmp/spark.tgz \
+    https://archive.apache.org/dist/spark/spark-3.5.0/spark-3.5.0-bin-hadoop3.tgz \
+    && tar -xzf /tmp/spark.tgz -C /opt \
+    && rm /tmp/spark.tgz \
+    && ln -s /opt/spark-3.5.0-bin-hadoop3 /opt/spark
 
 # Variabili ambiente
 ENV JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64
@@ -25,7 +24,6 @@ ENV PATH=$PATH:$SPARK_HOME/bin
 USER airflow
 
 # Install the Python dependencies
-RUN pip install --no-cache-dir --index-url https://download.pytorch.org/whl/cpu "torch==2.2.2"
 RUN pip install --no-cache-dir -r /requirements.txt
 
 

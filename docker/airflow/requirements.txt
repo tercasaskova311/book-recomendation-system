@@ -1,24 +1,13 @@
 # Airflow Providers
-apache-airflow-providers-apache-spark==4.7.1
+apache-airflow-providers-apache-spark
 
-# Spark & Data Processing
-pyspark==3.5.5           
-delta-spark==3.3.0       
-
-# Database
-psycopg2-binary==2.9.9
-
-# API & Web
-requests==2.31.0
-fastapi==0.109.0
-uvicorn==0.27.0
-
-# Data Science
-pandas==2.1.4
-numpy==1.26.2
-
-# Utilities
-python-dotenv==1.0.0
-pyyaml==6.0.1
-tqdm==4.66.1
-tenacity==8.2.3
+pyspark         
+delta-spark   
+psycopg2-binary
+requests
+pandas
+numpy
+python-dotenv
+pyyaml
+tqdm
+tenacity

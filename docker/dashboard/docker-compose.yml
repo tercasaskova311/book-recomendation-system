@@ -1,18 +1,51 @@
-version: "3.8"
 services:
-  dashboard:
-    image: ${DASHBOARD_IMAGE_NAME}:${DASHBOARD_IMAGE_TAG}
-    container_name: dashboard
-    volumes:
-      - ${PWD}:/opt/project
-      - ${PWD}/data:/data
-    ports:
-      - "8084:8504"
-    env_file:
-      - ../../.env.development
+  spark-master:
+    image: ${SPARK_IMAGE_NAME}:${SPARK_IMAGE_TAG}
+    container_name: spark-master
+    hostname: spark-master
+    user: root
     environment:
-      - PYTHONPATH=/opt/project
-    command: >
-      streamlit run /opt/project/scripts/dashboard/dashboard.py --server.port 8504 --server.address 0.0.0.0
-    restart: unless-stopped
+      - SPARK_MASTER_HOST=0.0.0.0
+      - SPARK_MASTER_PORT=7077
+      - SPARK_MASTER_WEBUI_PORT=8080
+      - SPARK_NO_DAEMONIZE=true
+    ports:
+      - "7077:7077"
+      - "8080:8080"
+    volumes:
+      - ../../:/opt/project
+      - ../../delta:/opt/project/delta
+      - ../../data:/opt/project/data
+    networks:
+      - spark-network
+    command: /opt/spark/bin/spark-class org.apache.spark.deploy.master.Master
 
+  spark-worker:
+    image: ${SPARK_IMAGE_NAME}:${SPARK_IMAGE_TAG}
+    container_name: spark-worker-1
+    hostname: spark-worker-1
+    user: root
+    environment:
+      - SPARK_MASTER=spark://spark-master:7077
+      - SPARK_WORKER_CORES=2
+      - SPARK_WORKER_MEMORY=4g
+      - SPARK_WORKER_PORT=8881
+      - SPARK_WORKER_WEBUI_PORT=8081
+      - SPARK_NO_DAEMONIZE=true
+      - PYTHONPATH=/opt/project
+    depends_on:
+      - spark-master
+    volumes:
+      - ../../:/opt/project
+      - ../../delta:/opt/project/delta
+      - ../../data:/opt/project/data
+    networks:
+      - spark-network
+    command: /opt/spark/bin/spark-class org.apache.spark.deploy.worker.Worker spark://spark-master:7077
+
+networks:
+  spark-network:
+    driver: bridge
+
+volumes:
+  spark-data:
