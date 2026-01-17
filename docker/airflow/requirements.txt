@@ -1,13 +1,4 @@
 # Airflow Providers
 apache-airflow-providers-apache-spark
-
-pyspark         
-delta-spark   
+pyspark
 psycopg2-binary
-requests
-pandas
-numpy
-python-dotenv
-pyyaml
-tqdm
-tenacity
