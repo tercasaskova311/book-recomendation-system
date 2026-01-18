@@ -10,8 +10,7 @@ RUN apt-get update && \
     apt-get install -y openjdk-17-jdk curl ca-certificates unzip git wget ffmpeg && \
     apt-get clean && rm -rf /var/lib/apt/lists/*
 
-
-# Install Apache Spark 3.5.0
+# Install Spark 3.5.0
 RUN curl -fLo /tmp/spark.tgz \
     https://archive.apache.org/dist/spark/spark-3.5.0/spark-3.5.0-bin-hadoop3.tgz \
  && tar -xzf /tmp/spark.tgz -C /opt \
