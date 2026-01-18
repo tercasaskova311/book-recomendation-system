@@ -1,26 +1,28 @@
-FROM bitnami/spark:latest
+# Alternative: Use official Apache Spark base
+FROM apache/spark:3.5.0-python3
 
 USER root
 
-# Install Python pip
+# Install additional dependencies
 RUN apt-get update && \
-    apt-get install -y python3-pip && \
+    apt-get install -y gcc python3-dev && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
 # Copy requirements
-COPY ./requirements.txt /tmp/requirements.txt
+COPY docker/spark/requirements.txt /tmp/requirements.txt
 
 # Install Python dependencies
 RUN pip3 install --no-cache-dir -r /tmp/requirements.txt
 
-# Set Python environment
+# Create project directories
+RUN mkdir -p /opt/project /opt/project/delta /opt/project/spark /opt/project/common && \
+    chown -R spark:spark /opt/project
+
+# Set environment
 ENV PYSPARK_PYTHON=python3
 ENV PYSPARK_DRIVER_PYTHON=python3
-
-# Create directories
-RUN mkdir -p /opt/project /opt/project/delta /opt/project/data && \
-    chown -R spark:spark /opt/project
+ENV PYTHONPATH=/opt/project:$PYTHONPATH
 
 USER spark
 

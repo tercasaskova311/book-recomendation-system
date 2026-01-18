@@ -4,17 +4,25 @@ services:
   streamlit:
     build:
       context: ../..
-      dockerfile: docker/streamlit/Dockerfile
-    container_name: streamlit_app
+      dockerfile: docker/dashboard/Dockerfile
+    container_name: streamlit-dashboard
     ports:
-      - "8501:8501"
+      - "${STREAMLIT_PORT:-8501}:8501"
     volumes:
-      - ../../src:/app
+      - ../../app:/app/app
+      - ../../common:/app/common
+      - ../../delta:/app/delta
+      - ../../config.py:/app/config.py
+      - ../../.env.development:/app/.env.development
     environment:
       - DB_HOST=host.docker.internal
-      - DB_PORT=5432
+      - DB_PORT=${DB_PORT:-5060}
+      - DB_NAME=${DB_NAME:-book_recommendations}
+      - DB_USER=${DB_USER:-terezasaskova}
+      - DB_PASSWORD=${DB_PASSWORD:-}
     networks:
       - streamlit_network
+    command: streamlit run app/dashboard.py --server.port=8501 --server.address=0.0.0.0
 
 networks:
   streamlit_network:

@@ -11,3 +11,6 @@ numpy
 # Utilities
 python-dotenv
 requests
+
+# PySpark ML (usually included with Bitnami Spark, but just in case)
+pyarrow

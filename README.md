@@ -135,8 +135,7 @@ book-recommendation-system/
 │   └── dashboard/
 ├── config.py                     # Global config
 ├── fetching_data.py              # Google Books API client
-├── data_final.py                 # Initial enrichment script
-└── docker-compose.yml            # Service orchestration
+├── data_final.py                 # Initial enrichment 
 ```
 
 ---
