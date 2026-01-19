@@ -1,13 +1,13 @@
 version: '3.8'
 
 services:
-  streamlit:
+  dashboard:
     build:
       context: ../..
       dockerfile: docker/dashboard/Dockerfile
-    container_name: streamlit-dashboard
+    container_name: dashboard
     ports:
-      - "${STREAMLIT_PORT:-8501}:8501"
+      - "${DASHBOARD_PORT:-8501}:8501"
     volumes:
       - ../../app:/app/app
       - ../../common:/app/common
@@ -15,15 +15,20 @@ services:
       - ../../config.py:/app/config.py
       - ../../.env.development:/app/.env.development
     environment:
-      - DB_HOST=host.docker.internal
-      - DB_PORT=${DB_PORT:-5060}
+      - DB_HOST=${DB_HOST:-book-recs-postgres}
+      - DB_PORT=5432
       - DB_NAME=${DB_NAME:-book_recommendations}
       - DB_USER=${DB_USER:-terezasaskova}
       - DB_PASSWORD=${DB_PASSWORD:-}
     networks:
-      - streamlit_network
+      - dashboard_network
+      - postgres_network
+    working_dir: /app
     command: streamlit run app/dashboard.py --server.port=8501 --server.address=0.0.0.0
 
 networks:
-  streamlit_network:
+  dashboard_network:
     driver: bridge
+  postgres_network:  
+    external: true
+    name: postgres_postgres_network

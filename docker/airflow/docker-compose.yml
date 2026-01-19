@@ -61,6 +61,8 @@ services:
       - ../../airflow/config:/opt/airflow/config
       - ../../data:/opt/project/data
       - ../../spark:/opt/project/spark
+      - ../../delta:/opt/project/delta 
+      - ../../data:/opt/project/data    
       - ../../common:/opt/project/common
       - ../../config.py:/opt/project/config.py
       - ../../fetching_data.py:/opt/project/fetching_data.py

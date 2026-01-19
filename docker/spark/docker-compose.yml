@@ -10,7 +10,7 @@ services:
     environment:
       - SPARK_MODE=master
       - DB_HOST=host.docker.internal
-      - DB_PORT=${DB_PORT:-5060}
+      - DB_PORT=5432
       - DB_NAME=${DB_NAME:-book_recommendations}
       - DB_USER=${DB_USER:-terezasaskova}
       - DB_PASSWORD=${DB_PASSWORD:-}
@@ -27,6 +27,8 @@ services:
       - ../../ingestion/fetching_data.py:/opt/project/fetching_data.py:ro
     networks:
       - spark_network
+      - postgres_network
+    user: root
     command: /opt/spark/sbin/start-master.sh && tail -f /opt/spark/logs/spark*.out
 
   spark-worker:
@@ -46,6 +48,8 @@ services:
       - ../../delta:/opt/project/delta:rw
     networks:
       - spark_network
+      - postgres_network
+
     command: /opt/spark/sbin/start-worker.sh spark://spark-master:7077 && tail -f /opt/spark/logs/spark*.out
 
 volumes:
@@ -54,3 +58,6 @@ volumes:
 networks:
   spark_network:
     driver: bridge
+  postgres_network:  
+    external: true
+    name: postgres_postgres_network
