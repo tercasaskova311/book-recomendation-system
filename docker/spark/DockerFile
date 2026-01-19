@@ -1,21 +1,23 @@
-# Alternative: Use official Apache Spark base
 FROM apache/spark:3.5.0-python3
 
 USER root
 
-# Install additional dependencies
+# Install build dependencies
 RUN apt-get update && \
-    apt-get install -y gcc python3-dev && \
-    apt-get clean && \
-    rm -rf /var/lib/apt/lists/*
+    apt-get install -y gcc python3-dev build-essential libffi-dev libssl-dev && \
+    apt-get clean && rm -rf /var/lib/apt/lists/*
+
+# Create writable temp folder for pip
+RUN mkdir -p /tmp/pip_tmp && chmod 777 /tmp/pip_tmp
+ENV TMPDIR=/tmp/pip_tmp
 
 # Copy requirements
 COPY docker/spark/requirements.txt /tmp/requirements.txt
 
-# Install Python dependencies
+# Install Python packages
 RUN pip3 install --no-cache-dir --timeout=1000 --retries=10 -r /tmp/requirements.txt
 
-# Create project directories
+# Create project dirs
 RUN mkdir -p /opt/project /opt/project/delta /opt/project/spark /opt/project/common && \
     chown -R spark:spark /opt/project
 
@@ -25,5 +27,4 @@ ENV PYSPARK_DRIVER_PYTHON=python3
 ENV PYTHONPATH=/opt/project:$PYTHONPATH
 
 USER spark
-
-WORKDIR /opt/spark
+WORKDIR /opt/project
