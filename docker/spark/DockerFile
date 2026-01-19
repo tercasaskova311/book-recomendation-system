@@ -1,25 +1,17 @@
-FROM apache/spark:3.5.0-python3
+FROM bitnamilegacy/spark:3.5.6
 
 USER root
 
-# Install build dependencies
+# Install build dependencies for C extensions
 RUN apt-get update && \
     apt-get install -y gcc python3-dev build-essential libffi-dev libssl-dev && \
     apt-get clean && rm -rf /var/lib/apt/lists/*
 
-# Create writable temp folder for pip
-RUN mkdir -p /tmp/pip_tmp && chmod 777 /tmp/pip_tmp
-ENV TMPDIR=/tmp/pip_tmp
-
 # Copy requirements
 COPY docker/spark/requirements.txt /tmp/requirements.txt
 
-# Install Python packages
-RUN pip3 install --no-cache-dir --timeout=1000 --retries=10 -r /tmp/requirements.txt
-
-# Create project dirs
-RUN mkdir -p /opt/project /opt/project/delta /opt/project/spark /opt/project/common && \
-    chown -R spark:spark /opt/project
+# Install Python packages from wheels / PyPI
+RUN pip3 install --no-cache-dir -r /tmp/requirements.txt
 
 # Set environment
 ENV PYSPARK_PYTHON=python3

@@ -1,9 +1,6 @@
-FROM apache/airflow:2.9.0
+FROM apache/airflow:2.9.0-python3
 
 USER root
-
-# Copy the requirements.txt into the image
-COPY ./requirements.txt /
 
 # Installa Java and all packages
 RUN apt-get update && \
