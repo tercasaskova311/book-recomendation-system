@@ -6,3 +6,7 @@ delta-spark
 apache-airflow-providers-docker
 PyYAML
 python-dotenv
+
+requests
+tqdm
+sentence-transformers

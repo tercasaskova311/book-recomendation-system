@@ -13,7 +13,7 @@ RUN apt-get update && \
 COPY docker/spark/requirements.txt /tmp/requirements.txt
 
 # Install Python dependencies
-RUN pip3 install --no-cache-dir -r /tmp/requirements.txt
+RUN pip3 install --no-cache-dir --timeout=1000 --retries=10 -r /tmp/requirements.txt
 
 # Create project directories
 RUN mkdir -p /opt/project /opt/project/delta /opt/project/spark /opt/project/common && \

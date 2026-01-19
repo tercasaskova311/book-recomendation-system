@@ -12,5 +12,7 @@ numpy
 python-dotenv
 requests
 
-# PySpark ML (usually included with Bitnami Spark, but just in case)
 pyarrow
+
+sentence-transformers
+tqdm

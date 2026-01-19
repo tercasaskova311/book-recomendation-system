@@ -1,31 +1,20 @@
-## fetching_data.py
-- fetching data from google books api
+### Data Ingestion Layer
 
-## load_data.py
-- creating sql schema and postgres db
-- loading kaggle csv files into postgres
+#### `ingestion/fetching_data.py`
+- **Purpose**: Fetch book metadata from Google Books API
+- **Rate Limit**: 1,000 requests/day (free tier)
+- **Enriches**: Title, description, authors, categories, page count, language
+- **Output**: Structured book data for PostgreSQL
 
-## ingestion.py
-- combining 1k books from kaggle books.csv with google books api metadata 
-- enriching a pure metadata without any content related info by description, genre, pages, language, ...
+#### `ingestion/load_data.py`
+- **Purpose**: Initialize PostgreSQL database and load Kaggle datasets
+- **Creates**: `books`, `users`, `ratings` tables
+- **Filters**: Only loads ratings for enriched books
 
----
-
-## System Overview
-
-### What It Does
-- **Processes**: 270K books, 1M ratings from Kaggle dataset
-- **Enriches**: Book metadata using Google Books API (descriptions, categories, language)
-- **Recommends**: Personalized book suggestions combining user preferences and content similarity
-- **Serves**: Real-time recommendations through Streamlit dashboard
-
-### Tech Stack
-- **Data Processing**: Apache Spark 3.5.5, Delta Lake 3.3.0
-- **Orchestration**: Apache Airflow 2.9.0
-- **Database**: PostgreSQL 13
-- **ML**: PySpark MLlib (ALS, TF-IDF)
-- **UI**: Streamlit
-- **Infrastructure**: Docker Compose
+#### `ingestion/ingestion.py`
+- **Purpose**: Daily enrichment of unenriched books
+- **Schedule**: Runs via Airflow DAG (`new_data.py`)
+- **Limit**: 100 books/day (respects API quota)
 
 ---
 
@@ -43,29 +32,8 @@
 ┌─────────────────┐     ┌──────────────────┐
 │ Google Books    │────▶│   PostgreSQL     │
 │  API Enrichment │     │  (Source Tables) │
-└─────────────────┘     └────────┬─────────┘
-                                 │
-                                 ▼
-                        ┌────────────────────┐
-                        │   Spark Pipeline   │
-                        │  - Content Feats   │
-                        │  - User Prefs (ALS)│
-                        │  - Hybrid Scores   │
-                        └────────┬───────────┘
-                                 │
-                                 ▼
-                        ┌────────────────────┐
-                        │    Delta Lake      │
-                        │  - Features        │
-                        │  - Similarities    │
-                        │  - Recommendations │
-                        └────────┬───────────┘
-                                 │
-                                 ▼
-                        ┌────────────────────┐
-                        │  Streamlit UI      │
-                        │  (User-facing)     │
-                        └────────────────────┘
+└─────────────────┘     └────────-─────────┘
+
 ```
 
 ---
