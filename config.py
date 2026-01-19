@@ -51,10 +51,14 @@ ALS_REG_PARAM = 0.01
 SIMILARITY_THRESHOLD = 0.1
 TOP_K_SIMILAR = 50
 
-TF_IDF_NUM_FEATURES = 2000
 MIN_DESCRIPTION_LENGTH = 50
 CATEGORY_TOP_N = 5
 
+ALPHA = 0.7
+NUM_RECS = 100 #top n per user
+MIN_CONTENT_SIMILARITY = 0.1 #filter weak content similarities..
+
+N_RECOMMENDATIONS = 100
 # ============================================================
 # FILE PATHS
 # ============================================================
@@ -68,3 +72,15 @@ KAGGLE_USERS = os.path.join(DATA_DIR, 'Users.csv')
 ENRICHED_BOOKS = os.path.join(DATA_DIR, 'books_enriched.csv')
 
 SCHEMA_SQL = os.path.join(PROJECT_ROOT, 'src/database/schema.sql')
+
+
+DELTA_USER_RECS = "delta/user_recs"
+DELTA_USER_FACTORS = "delta/user_factors"
+DELTA_ITEM_FACTORS = "delta/item_factors"
+DELTA_ALS_MODEL = "delta/als_model"
+
+DELTA_SIMILARITIES = "delta/similarities"
+DELTA_SIM_FEATURES = "delta/sim_features"
+DELTA_DESCRIPTION_EMBEDDINGS = "delta/descr_emb"
+
+DELTA_FINAL_RECS = "delta/final_recommendations"

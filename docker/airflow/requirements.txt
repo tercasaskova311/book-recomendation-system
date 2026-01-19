@@ -1,4 +1,8 @@
-# Airflow Providers
 apache-airflow-providers-apache-spark
 pyspark
 psycopg2-binary
+
+delta-spark
+apache-airflow-providers-docker
+PyYAML
+python-dotenv
