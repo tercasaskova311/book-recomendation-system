@@ -19,3 +19,14 @@ with DAG(
         application='/opt/project/spark/content_similarity.py',
         conn_id='spark_default',
     )
+    collaborative_filtering = BashOperator(
+        task_id='train_als_model',
+        bash_command='python /opt/project/spark/user_preferences.py',
+    )
+    
+    hybrid_recommendations = BashOperator(
+        task_id='generate_hybrid_recs',
+        bash_command='python /opt/project/spark/hybrid_recs.py',
+    )
+
+    content_features >> collaborative_filtering >> hybrid_recommendations

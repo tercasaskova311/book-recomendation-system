@@ -7,16 +7,10 @@ import os
 from dotenv import load_dotenv 
 import sys
 load_dotenv()
+from config import (
+    DB_HOST, DB_PORT, DB_NAME,
+    DB_USER, DB_PASSWORD)
 
-# =========== CONFIG =================================================
-
-DB_CONFIG = {
-    'host': os.getenv('DB_HOST', 'localhost'),
-    'port': os.getenv('DB_PORT', '5060'),  # ← Changed from 5432
-    'database': os.getenv('DB_NAME', 'book_recommendations'),
-    'user': os.getenv('DB_USER', 'terezasaskova'),
-    'password': os.getenv('DB_PASSWORD', '')
-}
 
 def get_connection():
     config = DB_CONFIG.copy()

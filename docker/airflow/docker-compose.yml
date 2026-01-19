@@ -59,6 +59,7 @@ services:
     volumes:
       - ../../airflow/dags:/opt/airflow/dags
       - ../../airflow/config:/opt/airflow/config
+      - ../../data:/opt/project/data
       - ../../spark:/opt/project/spark
       - ../../common:/opt/project/common
       - ../../config.py:/opt/project/config.py

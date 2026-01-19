@@ -16,5 +16,9 @@ with DAG(
 
     enrich_books = BashOperator(
         task_id='enrich_books',
-        bash_command='python /opt/project/ingestion/ingestion.py',
+        bash_command='cd /opt/project && PYTHONPATH=/opt/project python ingestion/ingestion.py',
+        env={
+            'PYTHONPATH': '/opt/project',
+            'GOOGLE_API_KEY': '{{ var.value.GOOGLE_API_KEY }}'
+        }
     )

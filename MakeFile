@@ -126,7 +126,7 @@ dashboard-up: build-dashboard
 	@echo "Starting Streamlit dashboard..."
 	docker compose --env-file .env.development -f $(DASHBOARD_PATH)/docker-compose.yml up -d
 	@echo "✓ Dashboard started"
-	@echo "   Dashboard UI: http://localhost:$(STREAMLIT_PORT)"
+	@echo "   Dashboard UI: http://localhost:$(DASHBOARD_PORT)"
 
 dashboard-down:
 	@echo "Stopping dashboard..."
@@ -146,7 +146,7 @@ up: postgres-up spark-up airflow-up dashboard-up
 	@echo "  - PostgreSQL:  localhost:$(DB_PORT)"
 	@echo "  - Spark UI:    http://localhost:8080"
 	@echo "  - Airflow UI:  http://localhost:$(AIRFLOW_PORT) (admin/admin)"
-	@echo "  - Dashboard:   http://localhost:$(STREAMLIT_PORT)"
+	@echo "  - Dashboard:   http://localhost:$(DASHBOARD_PORT)"
 	@echo "================================================"
 
 down: dashboard-down airflow-down spark-down postgres-down
@@ -184,7 +184,7 @@ init: build-all up
 	@echo "Next steps:"
 	@echo "  1. Load data: python ingestion/load_data.py"
 	@echo "  2. Run Spark jobs manually or via Airflow"
-	@echo "  3. Open dashboard: http://localhost:$(STREAMLIT_PORT)"
+	@echo "  3. Open dashboard: http://localhost:$(DASHBOARD_PORT)"
 	@echo "================================================"
 
 # ============ CLEANUP ============

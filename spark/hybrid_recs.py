@@ -25,12 +25,12 @@ from common.spark_session import get_spark_session
 from config import (
     JDBC_URL, JDBC_PROPERTIES, ALPHA, N_RECOMMENDATIONS,
     MIN_CONTENT_SIMILARITY, DELTA_SIMILARITIES,
-    DELTA_FINAL_RECS, DELTA_RECS
+    DELTA_FINAL_RECS, DELTA_USER_RECS, DELTA_ALS_MODEL
 )
 
 #========= USER HISTORY: filter out already rated books + find content based candidates... =============
 
-def read_user_history(spark):
+def read_user_rating(spark):
     return (
         spark.read
         .jdbc(
@@ -41,7 +41,8 @@ def read_user_history(spark):
         .filter(F.col("rating") >= 7)  # Only consider highly-rated books (7+)
         .select(
             F.col("user_id"),
-            F.col("rating")
+            F.col("rating"),
+            F.col("isbn")
         )
         .dropDuplicates()
     )
@@ -72,7 +73,7 @@ def load_als_score(spark):
 
     return (
         spark.read.format("delta")
-        .load(DELTA_RECS)
+        .load(DELTA_USER_RECS)
         .select(
             F.col("user_id"),
             F.col("isbn"),
@@ -82,18 +83,28 @@ def load_als_score(spark):
     )
 
 #======= FINAL SCORE ==================================
-def compute_sim_scores(user_history, content_sims):
+def compute_sim_scores(ratings, content_sims):
     """
     Compute content-based scores per user by finding max similarity
     to any rated book.
     """
-    # Broadcast user history for scaling
     content_scores = (
-        F.broadcast(user_history).alias("hist")
-        .join(content_sims.alias("sim"), F.col("hist.rated_isbn") == F.col("sim.isbn_a"))
-        .groupBy(F.col("hist.user_id"), F.col("sim.isbn_b").alias("isbn"))
-        .agg(F.max("sim.similarity_score").alias("content_score"))
+        ratings
+        .join(
+            content_sims,
+            ratings.isbn == content_sims.isbn_a,
+            how="inner"
+        )
+        .groupBy(
+            ratings.user_id,
+            content_sims.isbn_b
+        )
+        .agg(
+            F.max("similarity_score").alias("content_score")
+        )
+        .withColumnRenamed("isbn_b", "isbn")
     )
+
     return content_scores
 
 # ===================== COMPUTE HYBRID SCORE =====================
@@ -129,7 +140,7 @@ def filter_already_rated(hybrid_df, user_history):
     return hybrid_df.alias("h").join(
         user_history.alias("hist"),
         (F.col("h.user_id") == F.col("hist.user_id")) &
-        (F.col("h.isbn") == F.col("hist.rated_isbn")),
+        (F.col("h.isbn") == F.col("hist.isbn")),
         "left_anti"
     )
 
@@ -199,7 +210,7 @@ def main():
     spark.sparkContext.setLogLevel("WARN")
     
     try:        
-        user_history = read_user_history(spark)
+        user_history = read_user_rating(spark)
         als_recs = load_als_score(spark)
         content_sims = load_sim(spark)
 
@@ -215,11 +226,6 @@ def main():
 
         print(" HYBRID RECOMMENDATION PIPELINE COMPLETE!")
 
-        print(f"   Alpha (collaborative weight): {ALPHA}")
-        print(f"   Recommendations per user: {N_RECS}")
-        print(f"   Total recommendations: {final_recs.count():,}")
-        print(f"   Unique users: {final_recs.select('user_id').distinct().count():,}")
-        
         return 0
         
     except Exception as e:
