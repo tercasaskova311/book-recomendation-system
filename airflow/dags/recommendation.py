@@ -20,13 +20,15 @@ with DAG(
         conn_id='spark_default',
     )
     collaborative_filtering = SparkSubmitOperator(
-        task_id='train_als_model',
-        application='python /opt/project/spark/user_preferences.py',
+    task_id='train_als_model',
+    application='/opt/project/spark/user_preferences.py',
+    conn_id='spark_default',
     )
-    
+
     hybrid_recommendations = SparkSubmitOperator(
         task_id='generate_hybrid_recs',
-        application='python /opt/project/spark/hybrid_recs.py',
+        application='/opt/project/spark/hybrid_recs.py',
+        conn_id='spark_default',
     )
 
     content_features >> collaborative_filtering >> hybrid_recommendations

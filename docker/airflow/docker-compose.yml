@@ -46,6 +46,7 @@ services:
       - AIRFLOW__CORE__FERNET_KEY=''
       - AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION=true
       - AIRFLOW__CORE__LOAD_EXAMPLES=false
+      - SPARK_MASTER=spark://spark-master:7077  
       # DB for DAGs
       - DB_HOST=book-recs-postgres
       - DB_PORT=5432
@@ -68,9 +69,11 @@ services:
       - ../../fetching_data.py:/opt/project/fetching_data.py
       - ../../.env.development:/opt/project/.env.development
       - airflow_logs:/opt/airflow/logs
+      - ../../ingestion:/opt/project/ingestion 
     networks:
       - airflow_network
       - postgres_network
+      - spark_network
     command: >
       bash -c "
       airflow db upgrade &&
@@ -90,11 +93,12 @@ services:
       - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql+psycopg2://${POSTGRES_USER:-terezasaskova}:${POSTGRES_PASSWORD:-terezasaskova}@book-recs-postgres:5432/${POSTGRES_DB_AIRFLOW:-airflow}
       - AIRFLOW__CORE__FERNET_KEY=''
       - DB_HOST=book-recs-postgres
-      - DB_PORT=5432
+      - DB_PORT=5433
       - DB_NAME=${DB_NAME:-book_recommendations}
       - DB_USER=${DB_USER:-terezasaskova}
       - DB_PASSWORD=${DB_PASSWORD:-}
       - GOOGLE_API_KEY=${GOOGLE_API_KEY}
+      - SPARK_MASTER=spark://spark-master:7077  
     volumes:
       - ../../airflow/dags:/opt/airflow/dags
       - ../../airflow/config:/opt/airflow/config
@@ -104,9 +108,13 @@ services:
       - ../../fetching_data.py:/opt/project/fetching_data.py
       - ../../.env.development:/opt/project/.env.development
       - airflow_logs:/opt/airflow/logs
+      - ../../ingestion:/opt/project/ingestion 
+      - ../../delta:/opt/project/delta 
+
     networks:
       - airflow_network
       - postgres_network
+      - spark_network
     command: scheduler
 
 volumes:
@@ -116,6 +124,9 @@ networks:
   postgres_network:
     external: true
     name: postgres_postgres_network
+  spark_network:
+    external: true
+    name: spark_spark_network  
   airflow_network:
     driver: bridge
-    
+  

@@ -87,7 +87,7 @@ spark-up: build-spark
 	@echo "Waiting for Spark Master..."
 	@sleep 10
 	@echo "✓ Spark cluster started"
-	@echo "   Spark Master UI: http://localhost:8080"
+	@echo "   Spark Master UI: http://localhost:$(SPARK_PORT)"
 
 spark-down:
 	@echo "Stopping Spark cluster..."
@@ -195,7 +195,6 @@ status:
 	@echo "\n=== Dashboard Status ==="
 	@docker compose -f $(DASHBOARD_PATH)/docker-compose.yml ps 2>/dev/null || echo "Dashboard not running"
 
-# ============ INITIALIZATION ============
 init: build-all up
 	@echo ""
 	@echo "================================================"
@@ -204,8 +203,11 @@ init: build-all up
 	@echo "⚠️ Resetting database schema..."
 	@docker exec -i book-recs-postgres psql -U $(DB_USER) -d $(DB_NAME) -c "DROP SCHEMA public CASCADE; CREATE SCHEMA public;"
 	@echo "✅ Database schema reset complete"
-	@echo " Loading initial data (books, users, ratings)..."
-	@python3 ingestion/first_load.py
+	@echo "📥 Loading initial data (books, users, ratings)..."
+	
+	# Run Python script INSIDE the dashboard container (which has network access)
+	@docker exec dashboard python /app/ingestion/first_load.py
+	
 	@echo "✅ Initial data load complete!"
 	@echo ""
 	@echo "================================================"
@@ -216,7 +218,6 @@ init: build-all up
 	@echo "  - Airflow UI:  http://localhost:$(AIRFLOW_PORT) (admin/admin)"
 	@echo "  - Dashboard:   http://localhost:$(DASHBOARD_PORT)"
 	@echo "================================================"
-
 
 # ============ CLEANUP ============
 clean: down

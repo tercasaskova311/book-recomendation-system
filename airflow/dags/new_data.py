@@ -7,6 +7,7 @@ import sys
 sys.path.insert(0, '/opt/project')
 from ingestion.enriching_books import enrich_books_batch
 
+
 with open('/opt/airflow/config/pipeline_config.yaml') as f:
     config = yaml.safe_load(f)
 

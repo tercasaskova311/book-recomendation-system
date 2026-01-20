@@ -3,7 +3,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 DB_HOST = os.getenv('DB_HOST', 'localhost')
-DB_PORT = os.getenv('DB_PORT', '5060')
+DB_PORT = os.getenv('DB_PORT', '5433')
 DB_NAME = os.getenv('DB_NAME', 'book_recommendations')
 DB_USER = os.getenv('DB_USER', 'terezasaskova')
 DB_PASSWORD = os.getenv('DB_PASSWORD', '')
@@ -16,6 +16,7 @@ DB_CONFIG = {
     'user': DB_USER,
     'password': DB_PASSWORD
 }
+POSTGRES_JDBC_JAR = "/opt/spark/jars/postgresql-42.7.1.jar"
 
 JDBC_URL = f"jdbc:postgresql://{DB_HOST}:{DB_PORT}/{DB_NAME}" #adress of the db...
 JDBC_PROPERTIES = {
@@ -35,10 +36,6 @@ SPARK_EXECUTOR_CORES = 2        # CPU cores per executor
 SPARK_MASTER = "local[*]"       # Use all available cores
 # or
 # SPARK_MASTER = "local[4]"     # Use exactly 4 cores
-
-POSTGRES_JDBC_JAR = "/Users/terezasaskova/spark-jars/postgresql-42.7.1.jar"
-#java driver file...
-
 
 # ============================================================
 # MODEL PARAMETERS

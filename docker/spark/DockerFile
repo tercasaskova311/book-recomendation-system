@@ -12,4 +12,13 @@ RUN apt-get update && \
 COPY docker/spark/requirements.txt /tmp/requirements.txt
 RUN pip install --no-cache-dir -r /tmp/requirements.txt
 
+RUN curl -o /opt/spark/jars/delta-core_2.12-3.0.0.jar \
+    https://repo1.maven.org/maven2/io/delta/delta-core_2.12/3.0.0/delta-core_2.12-3.0.0.jar && \
+    curl -o /opt/spark/jars/delta-storage-3.0.0.jar \
+    https://repo1.maven.org/maven2/io/delta/delta-storage/3.0.0/delta-storage-3.0.0.jar
+
+RUN curl -o /opt/spark/jars/postgresql-42.7.1.jar \
+    https://jdbc.postgresql.org/download/postgresql-42.7.1.jar
+
+
 USER spark

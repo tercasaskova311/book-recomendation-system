@@ -1,21 +1,10 @@
-"""
-Complete Content-Based Recommendation Pipeline
-1. similarities from description:
--Load books from a database
--Convert textual descriptions into numeric embeddings (vectors)
--Cache embeddings to avoid recomputation
--Later (in another step), combine embeddings with other features (categories, metadata)
--Compute similarities using LSH
--Save everything to Delta Lake (efficient, scalable storage)
-2. Get other features + Apply weights (70% description, 20% categories, 10% metadata)
-3. Compute pairwise similarity using LSH
-4. Save features and similarities to Delta Lake
-"""
 from pyspark.sql.window import Window
-from pyspark.sql.functions import row_number, desc
+from pyspark.sql.functions import (
+    row_number, desc, col, when, size, lower, array_join, lit, array, length,
+    regexp_replace, trim, explode, split, min, max, udf
+)
 from pyspark.sql.types import DoubleType
 from pyspark.ml import Pipeline
-
 
 import os
 import sys
@@ -23,27 +12,15 @@ import re
 import numpy as np
 from dotenv import load_dotenv
 import traceback
-from pyspark.ml.linalg import Vectors
 from pyspark.ml.linalg import Vectors, VectorUDT
-from pyspark.sql.functions import udf
-import numpy as np
-
-from pyspark.sql import SparkSession
-from pyspark.sql.functions import (
-    col, when, size, lower, array_join, lit, array, length,
-    regexp_replace, trim, explode, split, min, max, udf
-)
-from pyspark.sql.types import (
-    ArrayType, StringType, FloatType, DoubleType, 
-    StructType, StructField
-)
+from pyspark.sql.types import ArrayType, StringType, FloatType, StructType, StructField
 from pyspark.ml.feature import (
     Tokenizer, StopWordsRemover, HashingTF, IDF,
     StringIndexer, OneHotEncoder, VectorAssembler,
     BucketedRandomProjectionLSH
 )
-from pyspark.ml.linalg import Vectors, VectorUDT
-from pyspark.ml import Pipeline
+from pyspark.sql.utils import AnalysisException
+
 load_dotenv()
 
 # Add project root to path
@@ -51,14 +28,11 @@ project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, project_root)
 
 from config import (
-    JDBC_URL, DELTA_DESCRIPTION_EMBEDDINGS, DELTA_SIMILARITIES, DELTA_SIM_FEATURES,JDBC_PROPERTIES,
-    MIN_DESCRIPTION_LENGTH,CATEGORY_TOP_N,POSTGRES_JDBC_JAR,
-    SIMILARITY_THRESHOLD, TOP_K_SIMILAR, MIN_DESCRIPTION_LENGTH, CATEGORY_TOP_N
+    JDBC_URL, DELTA_DESCRIPTION_EMBEDDINGS, DELTA_SIMILARITIES, DELTA_SIM_FEATURES,
+    JDBC_PROPERTIES, MIN_DESCRIPTION_LENGTH, CATEGORY_TOP_N, POSTGRES_JDBC_JAR,
+    SIMILARITY_THRESHOLD, TOP_K_SIMILAR
 )
-import hashlib
-from pyspark.sql.functions import udf
-from pyspark.sql.types import StringType
-from common.spark_session import get_spark_session
+from common.spark_session import get_spark_session 
 
 # =========== DATA LOADING ============================================
 def load_books(spark): 
@@ -76,21 +50,26 @@ def load_books(spark):
     )
 
 def load_existing_embeddings(spark):
-    if not spark._jsparkSession.catalog().tableExists("delta.`{}`".format(DELTA_DESCRIPTION_EMBEDDINGS)):
+    """Check if embeddings exist, return None if not"""
+    try:
+        return spark.read.format("delta").load(DELTA_DESCRIPTION_EMBEDDINGS)
+    except AnalysisException:
+        print("   No existing embeddings found")
         return None
-
-    return spark.read.format("delta").load(DELTA_DESCRIPTION_EMBEDDINGS)
 
 def get_descriptions_to_embed(_, books_df):
     return books_df
 
 def embed_descriptions(spark, df):
     """
-    Embed book descriptions using TF-IDF instead of Sentence Transformer.
+    Embed book descriptions using TF-IDF.
     Returns DataFrame with 'isbn' and 'description_embedding' columns.
     """
     if df is None or df.count() == 0:
+        print("   No descriptions to embed")
         return None
+    
+    print(f"   Embedding {df.count()} book descriptions...")
     
     pipeline = Pipeline(stages=[
         Tokenizer(inputCol="description", outputCol="tokens"), 
@@ -221,10 +200,10 @@ def encode_language(df):
 
 # =================== COMBINE EVERYTHING =========================================
 
-def combine_features(df, all_embeddings, cat_df, page_df, lang_df, tfidf_weight=0.7, category_weight=0.2, metadata_weight=0.1):
+def combine_features(books_df, all_embeddings, cat_df, page_df, lang_df, tfidf_weight=0.7, category_weight=0.2, metadata_weight=0.1):
 
-    df_combined = df \
-        .join(df_embedded, "isbn", "inner") \
+    df_combined = books_df \
+        .join(all_embeddings, "isbn", "inner") \
         .join(cat_df, "isbn", "inner") \
         .join(page_df, "isbn", "inner") \
         .join(lang_df, "isbn", "inner")
@@ -382,8 +361,8 @@ def main():
         lang_df = encode_language(books_df)
         
         df_final = combine_features(
-        books_df, all_embeddings, cat_df, page_df, lang_df,
-        tfidf_weight=0.7, category_weight=0.2, metadata_weight=0.1
+            books_df, all_embeddings, cat_df, page_df, lang_df,
+            tfidf_weight=0.7, category_weight=0.2, metadata_weight=0.1
         )
         save_features(df_final)
 

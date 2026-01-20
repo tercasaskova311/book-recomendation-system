@@ -13,7 +13,7 @@ services:
       - ../../ingestion/database/schema.sql:/docker-entrypoint-initdb.d/schema.sql
       - ./init-airflow-db.sql:/docker-entrypoint-initdb.d/02-airflow.sql
     ports:
-      - "5060:5432"
+      - "5060:5433"
     networks:
       - postgres_network
     healthcheck:

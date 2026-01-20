@@ -14,9 +14,11 @@ services:
       - ../../delta:/app/delta
       - ../../config.py:/app/config.py
       - ../../.env.development:/app/.env.development
+      - ../../ingestion:/app/ingestion 
+      - ../../data:/app/data           
     environment:
       - DB_HOST=${DB_HOST:-book-recs-postgres}
-      - DB_PORT=5432
+      - DB_PORT=5433
       - DB_NAME=${DB_NAME:-book_recommendations}
       - DB_USER=${DB_USER:-terezasaskova}
       - DB_PASSWORD=${DB_PASSWORD:-}
