@@ -1,4 +1,4 @@
-version: '3.8'
+version: "3.8"
 
 services:
   spark-master:
@@ -7,29 +7,24 @@ services:
       dockerfile: docker/spark/Dockerfile
     container_name: spark-master
     hostname: spark-master
+    env_file:
+      - ../../.env.development
     environment:
       - SPARK_MODE=master
-      - DB_HOST=book-recs-postgres  # ← FIXED: Use container name, not host.docker.internal
+      - DB_HOST=book-recs-postgres
       - DB_PORT=5432
-      - DB_NAME=${DB_NAME:-book_recommendations}
-      - DB_USER=${DB_USER:-terezasaskova}
-      - DB_PASSWORD=${DB_PASSWORD:-}
     ports:
-      - "8080:8080"  # Spark UI
-      - "7077:7077"  # Spark master
-      - "4040:4040"  # Application UI
+      - "8080:8080"
+      - "7077:7077"
+      - "4040-4050"
     volumes:
       - ../../spark:/opt/project/spark:rw
       - ../../common:/opt/project/common:rw
       - ../../delta:/opt/project/delta:rw
       - ../../config.py:/opt/project/config.py:ro
-      - ../../.env.development:/opt/project/.env.development:ro
-      - ../../ingestion/fetching_data.py:/opt/project/fetching_data.py:ro
     networks:
       - spark_network
       - postgres_network
-    user: root
-    # ← FIXED: Use shell to run both commands
     command: >
       bash -c "
       /opt/spark/sbin/start-master.sh &&
@@ -41,40 +36,34 @@ services:
       context: ../..
       dockerfile: docker/spark/Dockerfile
     container_name: spark-worker
+    env_file:
+      - ../../.env.development
     environment:
       - SPARK_MASTER=spark://spark-master:7077
       - SPARK_WORKER_CORES=2
       - SPARK_WORKER_MEMORY=4g
-      - DB_HOST=book-recs-postgres  # ← ADDED: Worker needs DB access too
+      - DB_HOST=book-recs-postgres
       - DB_PORT=5432
-      - DB_NAME=${DB_NAME:-book_recommendations}
-      - DB_USER=${DB_USER:-terezasaskova}
-      - DB_PASSWORD=${DB_PASSWORD:-}
     depends_on:
       - spark-master
     volumes:
       - ../../spark:/opt/project/spark:rw
       - ../../common:/opt/project/common:rw
       - ../../delta:/opt/project/delta:rw
-      - ../../config.py:/opt/project/config.py:ro  # ← ADDED
-      - ../../.env.development:/opt/project/.env.development:ro  # ← ADDED
+      - ../../config.py:/opt/project/config.py:ro
     networks:
       - spark_network
       - postgres_network
-    user: root  # ← ADDED: Match master
-    # ← FIXED: Use shell to run both commands
     command: >
       bash -c "
       /opt/spark/sbin/start-worker.sh spark://spark-master:7077 &&
       tail -f /dev/null
       "
 
-volumes:
-  spark_data:
-
 networks:
   spark_network:
     driver: bridge
-  postgres_network:  
+  postgres_network:
     external: true
     name: postgres_postgres_network
+

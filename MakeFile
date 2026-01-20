@@ -163,9 +163,10 @@ up: postgres-up spark-up airflow-up dashboard-up
 	@echo "================================================"
 	@echo "Access points:"
 	@echo "  - PostgreSQL:  localhost:$(DB_PORT)"
-	@echo "  - Spark UI:    http://localhost:8080"
+	@echo "  - Spark UI:    http://localhost:$(SPARK_PORT)"
 	@echo "  - Airflow UI:  http://localhost:$(AIRFLOW_PORT) (admin/admin)"
 	@echo "  - Dashboard:   http://localhost:$(DASHBOARD_PORT)"
+
 	@echo "================================================"
 
 down: dashboard-down airflow-down spark-down postgres-down
@@ -211,7 +212,7 @@ init: build-all up
 	@echo "✓ FULL SYSTEM INIT COMPLETE!"
 	@echo "Access points:"
 	@echo "  - PostgreSQL:  localhost:$(DB_PORT)"
-	@echo "  - Spark UI:    http://localhost:8080"
+	@echo "  - Spark UI:    http://localhost:$(SPARK_PORT)"
 	@echo "  - Airflow UI:  http://localhost:$(AIRFLOW_PORT) (admin/admin)"
 	@echo "  - Dashboard:   http://localhost:$(DASHBOARD_PORT)"
 	@echo "================================================"

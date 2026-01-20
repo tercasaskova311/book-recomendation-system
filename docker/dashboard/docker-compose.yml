@@ -27,8 +27,8 @@ services:
     command: streamlit run app/dashboard.py --server.port=8501 --server.address=0.0.0.0
 
 networks:
-  dashboard_network:
-    driver: bridge
-  postgres_network:  
+  postgres_network:
     external: true
     name: postgres_postgres_network
+  dashboard_network:
+    driver: bridge
