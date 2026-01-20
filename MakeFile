@@ -198,13 +198,24 @@ status:
 init: build-all up
 	@echo ""
 	@echo "================================================"
-	@echo "✓ Initialization complete!"
+	@echo "🚀INITIALIZING DATABASE WITH KAGGLE DATA"
 	@echo "================================================"
-	@echo "Next steps:"
-	@echo "  1. Load data: python ingestion/load_data.py"
-	@echo "  2. Run Spark jobs manually or via Airflow"
-	@echo "  3. Open dashboard: http://localhost:$(DASHBOARD_PORT)"
+	@echo "⚠️ Resetting database schema..."
+	@docker exec -i book-recs-postgres psql -U $(DB_USER) -d $(DB_NAME) -c "DROP SCHEMA public CASCADE; CREATE SCHEMA public;"
+	@echo "✅ Database schema reset complete"
+	@echo " Loading initial data (books, users, ratings)..."
+	@python3 ingestion/first_load.py
+	@echo "✅ Initial data load complete!"
+	@echo ""
 	@echo "================================================"
+	@echo "✓ FULL SYSTEM INIT COMPLETE!"
+	@echo "Access points:"
+	@echo "  - PostgreSQL:  localhost:$(DB_PORT)"
+	@echo "  - Spark UI:    http://localhost:8080"
+	@echo "  - Airflow UI:  http://localhost:$(AIRFLOW_PORT) (admin/admin)"
+	@echo "  - Dashboard:   http://localhost:$(DASHBOARD_PORT)"
+	@echo "================================================"
+
 
 # ============ CLEANUP ============
 clean: down

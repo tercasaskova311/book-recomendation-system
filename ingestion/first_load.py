@@ -70,6 +70,12 @@ def create_tables():
     
     with open('ingestion/database/schema.sql', 'r') as f:
         sql_script = f.read()
+
+    # Split by semicolon
+    for statement in sql_script.split(';'):
+        if statement.strip():
+            cursor.execute(statement)
+
     
     cursor.execute(sql_script)
     conn.commit()
@@ -94,6 +100,11 @@ def clean_isbn(isbn):
         return None
     return isbn_clean
 
+def insert_in_batches(cursor, query, records, batch_size=500):
+    for i in range(0, len(records), batch_size):
+        batch = records[i:i+batch_size]
+        execute_values(cursor, query, batch)
+
 def load_books_from_kaggle(csv_path):
     """
     Load books from Kaggle CSV into PostgreSQL
@@ -117,6 +128,7 @@ def load_books_from_kaggle(csv_path):
     
     # Filter to valid ISBNs only
     df_valid = df[df['isbn_clean'].notna()].copy()
+    
     
     print(f"   Valid ISBNs: {len(df_valid):,}/{len(df):,} ({len(df_valid)/len(df)*100:.1f}%)")
     
