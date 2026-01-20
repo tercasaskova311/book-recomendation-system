@@ -1,28 +1,8 @@
-# docker/spark/Dockerfile
-FROM docker.io/bitnami/spark:3.5.6
+FROM apache/spark:3.5.6-python3
 
 USER root
 
-# Install build dependencies
-RUN apt-get update && \
-    apt-get install -y gcc g++ python3-dev build-essential && \
-    apt-get clean && rm -rf /var/lib/apt/lists/*
-
-# Upgrade pip first
-RUN pip install --upgrade pip setuptools wheel
-
-# Copy requirements
-COPY docker/spark/requirements.txt /tmp/requirements.txt
-
-# Install Python packages
+COPY requirements.txt /tmp/requirements.txt
 RUN pip install --no-cache-dir -r /tmp/requirements.txt
 
-# Pre-download sentence transformer model
-RUN python -c "from sentence_transformers import SentenceTransformer; SentenceTransformer('all-MiniLM-L6-v2')"
-
-ENV PYSPARK_PYTHON=python3
-ENV PYSPARK_DRIVER_PYTHON=python3
-ENV PYTHONPATH=/opt/project:$PYTHONPATH
-
-USER 1001
-WORKDIR /opt/bitnami/spark
+USER spark

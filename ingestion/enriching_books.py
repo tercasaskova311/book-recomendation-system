@@ -3,17 +3,10 @@ from psycopg2.extras import execute_values
 from tqdm import tqdm
 import os
 import sys
-import logging
 project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, project_root)
-from ingestion.fetching_data import GoogleBooksClient
+from ingestion.google_books import GoogleBooksClient
 from config import DB_CONFIG
-
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s'
-)
-logger = logging.getLogger(__name__)
 
 # ========== CONFIGURATION ==========
 DAILY_LIMIT = int(os.getenv('ENRICHMENT_BATCH_SIZE', 100))  #API quota
@@ -23,11 +16,11 @@ DAILY_LIMIT = int(os.getenv('ENRICHMENT_BATCH_SIZE', 100))  #API quota
 def get_db_connection():
     return psycopg2.connect(**DB_CONFIG)
 
-def get_unenriched_books(limit=DAILY_LIMIT):
-    """
-    Fetch books from database that haven't been enriched yet
-    Returns: List of (isbn, kaggle_title, kaggle_author, kaggle_year, kaggle_publisher)
-    """
+def get_unenriched_books(limit=DAILY_LIMIT): 
+
+#Fetch books from database that haven't been enriched yet
+#Returns: List of (isbn, kaggle_title, kaggle_author, kaggle_year, kaggle_publisher)
+
     conn = get_db_connection()
     cursor = conn.cursor()
     
@@ -45,7 +38,7 @@ def get_unenriched_books(limit=DAILY_LIMIT):
     cursor.close()
     conn.close()
     
-    logger.info(f"Found {len(books)} unenriched books in database")
+    print(f"Found {len(books)} unenriched books in database")
     return books
 
 def update_book_with_google_data(isbn, google_data):
@@ -82,7 +75,7 @@ def update_book_with_google_data(isbn, google_data):
                 google_data['language'],
                 isbn
             ))
-            logger.debug(f"Enriched: {google_data['title']}")
+            print(f"Enriched: {google_data['title']}")
         else:
             # Not found in Google Books - mark as enriched anyway
             cursor.execute("""
@@ -91,12 +84,12 @@ def update_book_with_google_data(isbn, google_data):
                     data_source = 'kaggle_only'
                 WHERE isbn = %s
             """, (isbn,))
-            logger.debug(f" Not found: {isbn}")
+            print(f" Not found: {isbn}")
         
         conn.commit()
         
     except Exception as e:
-        logger.error(f"Database error for ISBN {isbn}: {e}")
+        print(f"Database error for ISBN {isbn}: {e}")
         conn.rollback()
     finally:
         cursor.close()
@@ -111,15 +104,12 @@ def enrich_books_batch(limit=DAILY_LIMIT):
     2. Call Google Books API for each
     3. Update database with results
     """
-    logger.info("=" * 60)
-    logger.info("BOOK ENRICHMENT PIPELINE STARTED")
-    logger.info("=" * 60)
     
     # Step 1: Get books to enrich
     books = get_unenriched_books(limit)
     
     if not books:
-        logger.info(" No books to enrich found - all done!")
+        print(" No books to enrich found - all done!")
         return {
             'processed': 0,
             'enriched': 0,
@@ -130,10 +120,10 @@ def enrich_books_batch(limit=DAILY_LIMIT):
     client = GoogleBooksClient(rate_limit_delay=0.1)
     
     if not client.test_connection():
-        logger.error(" Google Books API connection test failed!")
+        print(" Google Books API connection test failed!")
         raise ConnectionError("Cannot connect to Google Books API")
     
-    logger.info(f"Google Books API connected")
+    print(f"Google Books API connected")
     
     # Step 3: Process each book
     enriched_count = 0
@@ -153,20 +143,17 @@ def enrich_books_batch(limit=DAILY_LIMIT):
             not_found_count += 1
     
     # Step 4: Print summary
-    logger.info(" COMPLETE")
-    logger.info(f"Total processed: {len(books)}")
-    logger.info(f"Successfully enriched: {enriched_count} ({enriched_count/len(books)*100:.1f}%)")
-    logger.info(f"Not found: {not_found_count} ({not_found_count/len(books)*100:.1f}%)")
+    print(" COMPLETE")
 
 # ========== MAIN ENTRY POINT ==========
 
 def main():
     try:
         results = enrich_books_batch(limit=DAILY_LIMIT)
-        logger.info(f"\n succeeded: {results}")
+        print(f"\n succeeded: {results}")
         return 0
     except Exception as e:
-        logger.error(f"\nfailed: {e}", exc_info=True)
+        print(f"\nfailed: {e}", exc_info=True)
         return 1
 
 if __name__ == "__main__":

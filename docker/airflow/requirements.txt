@@ -1,10 +1,4 @@
 apache-airflow-providers-apache-spark>=4.1.3
 apache-airflow-providers-postgres>=5.5.1
-pyspark>=3.5.0
-delta-spark>=3.0.0
-#psycopg2-binary>=2.9.9
-#python-dotenv>=1.0.0
-
-airflow.operators.python 
-airflow.utils.dates
-
+psycopg2-binary>=2.9.9
+python-dotenv>=1.0.0

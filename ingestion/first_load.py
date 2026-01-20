@@ -5,8 +5,10 @@ import json
 from tqdm import tqdm
 import os
 from dotenv import load_dotenv 
+import os
 import sys
-load_dotenv()
+project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, project_root)load_dotenv()
 from config import (
     DB_HOST, DB_PORT, DB_NAME,
     DB_USER, DB_PASSWORD)
