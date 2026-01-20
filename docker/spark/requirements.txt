@@ -1,9 +1,2 @@
-torch==2.2.1+cpu
---extra-index-url https://download.pytorch.org/whl/cpu
-
-sentence-transformers==2.6.1
+python-dotenv
 numpy
-pandas
-pyarrow
-pyspark==3.5.6
-delta-spark==3.2.0

@@ -14,6 +14,8 @@ Complete Content-Based Recommendation Pipeline
 from pyspark.sql.window import Window
 from pyspark.sql.functions import row_number, desc
 from pyspark.sql.types import DoubleType
+from pyspark.ml import Pipeline
+
 
 import os
 import sys
@@ -21,7 +23,6 @@ import re
 import numpy as np
 from dotenv import load_dotenv
 import traceback
-from sentence_transformers import SentenceTransformer
 from pyspark.ml.linalg import Vectors
 from pyspark.ml.linalg import Vectors, VectorUDT
 from pyspark.sql.functions import udf
@@ -83,30 +84,25 @@ def load_existing_embeddings(spark):
 def get_descriptions_to_embed(_, books_df):
     return books_df
 
-# ========= DESCRIPTIONS ===============================================
-
 def embed_descriptions(spark, df):
-    model = SentenceTransformer("all-MiniLM-L6-v2")
-
-    pdf = df.toPandas()
-
-    embeddings = model.encode(
-        pdf["description"].tolist(),
-        normalize_embeddings=True,
-        batch_size=32,
-        show_progress_bar=True
-    )
-
-    pdf["embedding"] = embeddings.tolist()
-
-    spark_df = spark.createDataFrame(pdf[["isbn", "embedding"]])
-
-    to_vector = udf(lambda x: Vectors.dense(x), VectorUDT())
-
-    return spark_df.withColumn(
-        "description_embedding",
-        to_vector(col("embedding"))
-    ).drop("embedding")
+    """
+    Embed book descriptions using TF-IDF instead of Sentence Transformer.
+    Returns DataFrame with 'isbn' and 'description_embedding' columns.
+    """
+    if df is None or df.count() == 0:
+        return None
+    
+    pipeline = Pipeline(stages=[
+        Tokenizer(inputCol="description", outputCol="tokens"), 
+        StopWordsRemover(inputCol="tokens", outputCol="filtered_tokens"), 
+        HashingTF(inputCol="filtered_tokens", outputCol="raw_features", numFeatures=2048), 
+        IDF(inputCol="raw_features", outputCol="description_embedding")
+    ])
+    
+    model = pipeline.fit(df)
+    df_embedded = model.transform(df)
+    
+    return df_embedded.select("isbn", "description_embedding")
 
 def save_embeddings(spark, df):
     if df is None:
@@ -228,7 +224,7 @@ def encode_language(df):
 def combine_features(df, all_embeddings, cat_df, page_df, lang_df, tfidf_weight=0.7, category_weight=0.2, metadata_weight=0.1):
 
     df_combined = df \
-        .join(all_embeddings, "isbn", "inner") \
+        .join(df_embedded, "isbn", "inner") \
         .join(cat_df, "isbn", "inner") \
         .join(page_df, "isbn", "inner") \
         .join(lang_df, "isbn", "inner")
@@ -236,7 +232,7 @@ def combine_features(df, all_embeddings, cat_df, page_df, lang_df, tfidf_weight=
     cat_cols = [c for c in cat_df.columns if c.startswith("cat_")]    
     n_categories = len(cat_cols)  
 
-    # TF-IDF or embedding size
+
     sample_vec = df_combined.select("description_embedding").first()
     n_tfidf = sample_vec["description_embedding"].size
 

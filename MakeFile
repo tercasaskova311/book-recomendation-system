@@ -136,6 +136,25 @@ dashboard-down:
 dashboard-logs:
 	docker compose -f $(DASHBOARD_PATH)/docker-compose.yml logs -f
 
+load-data: postgres-up
+	@echo ""
+	@echo "================================================"
+	@echo "📥 LOADING KAGGLE DATA INTO DATABASE"
+	@echo "================================================"
+	@echo ""
+	@echo "⏳ This will:"
+	@echo "   1. Create database schema"
+	@echo "   2. Load ~270K books from Kaggle"
+	@echo "   3. Load ~278K users"
+	@echo "   4. Load ~1M ratings"
+	@echo "   5. Mark all books as unenriched"
+	@echo ""
+	@read -p "Press Enter to continue or Ctrl+C to cancel..."
+	@python3 ingestion/first_load.py
+	@echo ""
+	@echo "✅ Data loading complete!"
+	@echo ""
+
 # ============ COMBINED COMMANDS ============
 up: postgres-up spark-up airflow-up dashboard-up
 	@echo ""
