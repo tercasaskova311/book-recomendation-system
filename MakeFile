@@ -69,8 +69,9 @@ postgres-up:
 	@echo "Starting PostgreSQL..."
 	docker compose --env-file .env.development -f $(POSTGRES_PATH)/docker-compose.yml up -d
 	@echo "Waiting for PostgreSQL to be healthy..."
-	@timeout 60 sh -c 'until docker exec book-recs-postgres pg_isready -U $(DB_USER); do sleep 2; done' || echo "Timeout waiting for PostgreSQL"
+	@timeout 60 sh -c 'until docker exec book-recs-postgres pg_isready -U $(DB_USER) -p 5433; do sleep 2; done' || echo "Timeout waiting for PostgreSQL"
 	@echo "✓ PostgreSQL is ready"
+	@echo "   Connection: localhost:5060 (maps to container port 5433)"
 
 postgres-down:
 	@echo "Stopping PostgreSQL..."
@@ -87,7 +88,7 @@ spark-up: build-spark
 	@echo "Waiting for Spark Master..."
 	@sleep 10
 	@echo "✓ Spark cluster started"
-	@echo "   Spark Master UI: http://localhost:$(SPARK_PORT)"
+	@echo "   Spark Master UI: http://localhost:8080"
 
 spark-down:
 	@echo "Stopping Spark cluster..."
@@ -162,11 +163,10 @@ up: postgres-up spark-up airflow-up dashboard-up
 	@echo "✓ All services started successfully!"
 	@echo "================================================"
 	@echo "Access points:"
-	@echo "  - PostgreSQL:  localhost:$(DB_PORT)"
-	@echo "  - Spark UI:    http://localhost:$(SPARK_PORT)"
+	@echo "  - PostgreSQL:  localhost:5060 (internal: 5433)"
+	@echo "  - Spark UI:    http://localhost:8080"
 	@echo "  - Airflow UI:  http://localhost:$(AIRFLOW_PORT) (admin/admin)"
 	@echo "  - Dashboard:   http://localhost:$(DASHBOARD_PORT)"
-
 	@echo "================================================"
 
 down: dashboard-down airflow-down spark-down postgres-down
@@ -198,10 +198,10 @@ status:
 init: build-all up
 	@echo ""
 	@echo "================================================"
-	@echo "🚀INITIALIZING DATABASE WITH KAGGLE DATA"
+	@echo "🚀 INITIALIZING DATABASE WITH KAGGLE DATA"
 	@echo "================================================"
-	@echo "⚠️ Resetting database schema..."
-	@docker exec -i book-recs-postgres psql -U $(DB_USER) -d $(DB_NAME) -c "DROP SCHEMA public CASCADE; CREATE SCHEMA public;"
+	@echo "⚠️  Resetting database schema..."
+	@docker exec -i book-recs-postgres psql -U $(DB_USER) -d $(DB_NAME) -p 5433 -c "DROP SCHEMA public CASCADE; CREATE SCHEMA public;"
 	@echo "✅ Database schema reset complete"
 	@echo "📥 Loading initial data (books, users, ratings)..."
 	
@@ -213,8 +213,8 @@ init: build-all up
 	@echo "================================================"
 	@echo "✓ FULL SYSTEM INIT COMPLETE!"
 	@echo "Access points:"
-	@echo "  - PostgreSQL:  localhost:$(DB_PORT)"
-	@echo "  - Spark UI:    http://localhost:$(SPARK_PORT)"
+	@echo "  - PostgreSQL:  localhost:5060 (internal: 5433)"
+	@echo "  - Spark UI:    http://localhost:8080"
 	@echo "  - Airflow UI:  http://localhost:$(AIRFLOW_PORT) (admin/admin)"
 	@echo "  - Dashboard:   http://localhost:$(DASHBOARD_PORT)"
 	@echo "================================================"
