@@ -1,7 +1,6 @@
 streamlit
-pyspark
-delta-spark
-psycopg2-binary
 pandas
 python-dotenv
-
+psycopg2-binary
+delta-spark
+pyspark==4.1.1

@@ -105,15 +105,15 @@ class GoogleBooksClient:
                 if data.get('totalItems', 0) > 0:
                     book_data = data['items'][0]['volumeInfo']
                     self.successful_requests += 1
-                    logger.info(f"✅ Found: {book_data.get('title')} (ISBN: {search_isbn})")
+                    logger.info(f" Found: {book_data.get('title')} (ISBN: {search_isbn})")
                     return self._parse_book_data(book_data, isbn)
                 
             except requests.exceptions.RequestException as e:
-                logger.error(f"❌ Request error for ISBN {search_isbn}: {e}")
+                logger.error(f" Request error for ISBN {search_isbn}: {e}")
                 self.failed_requests += 1
             
             except Exception as e:
-                logger.error(f"❌ Error for ISBN {search_isbn}: {e}")
+                logger.error(f" Error for ISBN {search_isbn}: {e}")
                 self.failed_requests += 1
             
             finally:
@@ -121,10 +121,10 @@ class GoogleBooksClient:
         
         # If ISBN search failed, try title+author fallback
         if retry_with_title and title:
-            logger.info(f"🔄 ISBN not found, trying title search: {title}")
+            logger.info(f" ISBN not found, trying title search: {title}")
             return self.search_by_title_author(title, author, isbn)
         
-        logger.warning(f"❌ ISBN {isbn} not found")
+        logger.warning(f" ISBN {isbn} not found")
         self.failed_requests += 1
         return None
     
@@ -159,11 +159,11 @@ class GoogleBooksClient:
             if data.get('totalItems', 0) > 0:
                 book_data = data['items'][0]['volumeInfo']
                 self.successful_requests += 1
-                logger.info(f"✅ Found by title: {book_data.get('title')}")
+                logger.info(f" Found by title: {book_data.get('title')}")
                 return self._parse_book_data(book_data, original_isbn)
             
         except Exception as e:
-            logger.error(f"❌ Title search error: {e}")
+            logger.error(f" Title search error: {e}")
             self.failed_requests += 1
         
         finally:
@@ -228,8 +228,7 @@ def diagnose_isbn_issues(csv_path: str, sample_size: int = 100):
     df = pd.read_csv(csv_path, encoding='latin-1', on_bad_lines='skip')
     sample = df.head(sample_size)
     
-    print(f"\n📊 ISBN QUALITY ANALYSIS (sample: {sample_size})")
-    print("=" * 60)
+    print(f"\n ISBN QUALITY ANALYSIS (sample: {sample_size})")
     
     # Check ISBN column
     if 'ISBN' in df.columns:
@@ -237,7 +236,7 @@ def diagnose_isbn_issues(csv_path: str, sample_size: int = 100):
     elif 'isbn' in df.columns:
         isbn_col = 'isbn'
     else:
-        print("❌ No ISBN column found!")
+        print(" No ISBN column found!")
         return
     
     total = len(sample)
@@ -260,13 +259,13 @@ def diagnose_isbn_issues(csv_path: str, sample_size: int = 100):
     # 4. Sample of invalid ISBNs
     invalid = sample[~sample['isbn_length'].isin([10, 13])]
     if len(invalid) > 0:
-        print(f"\n❌ Sample of INVALID ISBNs:")
+        print(f"\n Sample of INVALID ISBNs:")
         for idx, row in invalid.head(5).iterrows():
             print(f"   {row[isbn_col]} -> cleaned: '{row['isbn_clean']}' (len={row['isbn_length']})")
     
     # 5. Sample of valid ISBNs
     if len(valid) > 0:
-        print(f"\n✅ Sample of VALID ISBNs:")
+        print(f"\n Sample of VALID ISBNs:")
         for idx, row in valid.head(5).iterrows():
             print(f"   {row[isbn_col]} -> {row['isbn_clean']}")
 
@@ -284,10 +283,10 @@ if __name__ == "__main__":
     client = GoogleBooksClient(rate_limit_delay=0.1)
     
     if not client.test_connection():
-        print("❌ Connection test failed!")
+        print("Connection test failed!")
         exit(1)
     
-    print("\n🧪 TESTING ISBN SEARCHES")
+    print("\n TESTING ISBN SEARCHES")
     
     test_cases = [
         # (isbn, title, author) - for fallback testing
@@ -298,7 +297,7 @@ if __name__ == "__main__":
     ]
     
     for isbn, title, author in test_cases:
-        print(f"\n🔍 Testing: {title} ({isbn})")
+        print(f"\n Testing: {title} ({isbn})")
         
         # Try with fallback enabled
         book = client.search_by_isbn(
@@ -309,12 +308,12 @@ if __name__ == "__main__":
         )
         
         if book:
-            print(f"   ✅ SUCCESS!")
+            print(f"   SUCCESS!")
             print(f"      Title: {book['title']}")
             print(f"      Authors: {book['authors']}")
             print(f"      Description: {book['description'][:100]}..." if book['description'] else "      No description")
         else:
-            print(f"   ❌ NOT FOUND")
+            print(f"    NOT FOUND")
     
     print("\n📊 API STATISTICS")
     stats = client.get_stats()

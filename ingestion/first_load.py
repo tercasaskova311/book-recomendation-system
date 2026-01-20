@@ -28,10 +28,10 @@ def test_connection():
         result = cursor.fetchone()
         cursor.close()
         conn.close()
-        print("✅ Database connection successful!")
+        print(" Database connection successful!")
         return True
     except Exception as e:
-        print(f"❌ Connection failed: {e}")
+        print(f" Connection failed: {e}")
         return False
 
 # ============== DATABASE SETUP ==========
@@ -56,15 +56,15 @@ def create_database():
         
         if not cursor.fetchone():
             cursor.execute(f"CREATE DATABASE {DB_CONFIG['database']}")
-            print(f"✅ Created database: {DB_CONFIG['database']}")
+            print(f" Created database: {DB_CONFIG['database']}")
         else:
-            print(f"✅ Database exists: {DB_CONFIG['database']}")
+            print(f" Database exists: {DB_CONFIG['database']}")
         
         cursor.close()
         conn.close()
         return True
     except Exception as e:
-        print(f"❌ Database creation failed: {e}")
+        print(f" Database creation failed: {e}")
         return False
 
 def create_tables():
@@ -75,7 +75,7 @@ def create_tables():
         
         schema_path = 'ingestion/database/schema.sql'
         if not os.path.exists(schema_path):
-            print(f"❌ Schema file not found: {schema_path}")
+            print(f" Schema file not found: {schema_path}")
             return False
         
         with open(schema_path, 'r') as f:
@@ -88,11 +88,11 @@ def create_tables():
         cursor.close()
         conn.close()
         
-        print("✅ Tables created from schema.sql")
+        print(" Tables created from schema.sql")
         return True
         
     except Exception as e:
-        print(f"❌ Table creation failed: {e}")
+        print(f" Table creation failed: {e}")
         import traceback
         traceback.print_exc()
         return False
@@ -125,7 +125,7 @@ def load_books_from_kaggle(csv_path):
     try:
         # Check if file exists
         if not os.path.exists(csv_path):
-            print(f"❌ File not found: {csv_path}")
+            print(f" File not found: {csv_path}")
             return 0
         
         # Read CSV with error handling
@@ -200,10 +200,10 @@ def load_books_from_kaggle(csv_path):
                 conn.commit()
                 total_inserted += cursor.rowcount
             except Exception as e:
-                print(f"\n❌ Error inserting batch {i//batch_size}: {e}")
+                print(f"\n  Error inserting batch {i//batch_size}: {e}")
                 conn.rollback()
         
-        print(f"\n✅ Loaded {total_inserted:,} books into database")
+        print(f"\n Loaded {total_inserted:,} books into database")
         
         cursor.close()
         conn.close()
@@ -211,7 +211,7 @@ def load_books_from_kaggle(csv_path):
         return total_inserted
         
     except Exception as e:
-        print(f"❌ Book loading failed: {e}")
+        print(f"  Book loading failed: {e}")
         import traceback
         traceback.print_exc()
         return 0
@@ -222,7 +222,7 @@ def load_users(csv_path):
     
     try:
         if not os.path.exists(csv_path):
-            print(f"❌ File not found: {csv_path}")
+            print(f" File not found: {csv_path}")
             return 0
         
         df = pd.read_csv(
@@ -272,10 +272,10 @@ def load_users(csv_path):
                 conn.commit()
                 total_inserted += cursor.rowcount
             except Exception as e:
-                print(f"\n❌ Error inserting batch {i//batch_size}: {e}")
+                print(f"\n Error inserting batch {i//batch_size}: {e}")
                 conn.rollback()
         
-        print(f"\n✅ Loaded {total_inserted:,} users into database")
+        print(f"\n Loaded {total_inserted:,} users into database")
         
         cursor.close()
         conn.close()
@@ -283,7 +283,7 @@ def load_users(csv_path):
         return total_inserted
         
     except Exception as e:
-        print(f"❌ User loading failed: {e}")
+        print(f" User loading failed: {e}")
         import traceback
         traceback.print_exc()
         return 0
@@ -297,7 +297,7 @@ def load_ratings(csv_path):
     
     try:
         if not os.path.exists(csv_path):
-            print(f"❌ File not found: {csv_path}")
+            print(f" File not found: {csv_path}")
             return 0
         
         # First, get all valid ISBNs from database
@@ -368,10 +368,10 @@ def load_ratings(csv_path):
                 conn.commit()
                 total_inserted += cursor.rowcount
             except Exception as e:
-                print(f"\n❌ Error inserting batch {i//batch_size}: {e}")
+                print(f"\n Error inserting batch {i//batch_size}: {e}")
                 conn.rollback()
         
-        print(f"\n✅ Loaded {total_inserted:,} ratings into database")
+        print(f"\n Loaded {total_inserted:,} ratings into database")
         
         cursor.close()
         conn.close()
@@ -379,7 +379,7 @@ def load_ratings(csv_path):
         return total_inserted
         
     except Exception as e:
-        print(f"❌ Rating loading failed: {e}")
+        print(f" Rating loading failed: {e}")
         import traceback
         traceback.print_exc()
         return 0
@@ -392,8 +392,7 @@ def get_table_counts():
         conn = get_connection()
         cursor = conn.cursor()
         
-        print("\n📊 TABLE STATISTICS:")
-        print("=" * 60)
+        print("\n TABLE STATISTICS:")
         
         for table in ['books', 'users', 'ratings']:
             cursor.execute(f"SELECT COUNT(*) FROM {table}")
@@ -416,7 +415,7 @@ def get_table_counts():
         conn.close()
         
     except Exception as e:
-        print(f"❌ Error getting statistics: {e}")
+        print(f" Error getting statistics: {e}")
 
 def sample_books():
     """Show sample books"""
@@ -431,8 +430,7 @@ def sample_books():
             LIMIT 5
         """)
         
-        print("\n📚 SAMPLE BOOKS:")
-        print("=" * 60)
+        print("\n SAMPLE BOOKS:")
         for row in cursor.fetchall():
             print(f"   ISBN: {row[0]}")
             print(f"   Title: {row[1]}")
@@ -445,39 +443,27 @@ def sample_books():
         conn.close()
         
     except Exception as e:
-        print(f"❌ Error getting sample books: {e}")
+        print(f" Error getting sample books: {e}")
 
 # ============== MAIN PIPELINE ==========
 
-def main():
-    """
-    Main data loading pipeline:
-    1. Create database and tables
-    2. Load Kaggle data (books, users, ratings)
-    3. All books marked as unenriched
-    4. Enrichment happens separately via enriching_books.py
-    """
-    print("\n" + "=" * 60)
-    print("📚 BOOK RECOMMENDATION SYSTEM - INITIAL DATA LOAD")
-    print("=" * 60)
-    
+def main():    
     # Step 1: Database setup
-    print("\n🔧 Step 1: Database Setup")
     
     if not create_database():
-        print("❌ Database creation failed. Exiting.")
+        print(" Database creation failed. Exiting.")
         return 1
     
     if not test_connection():
-        print("❌ Cannot connect to database. Check your .env file.")
+        print(" Cannot connect to database. Check your .env file.")
         return 1
     
     if not create_tables():
-        print("❌ Table creation failed. Exiting.")
+        print(" Table creation failed. Exiting.")
         return 1
     
     # Step 2: Load data
-    print("\n📥 Step 2: Loading Kaggle Data")
+    print("\n Step 2: Loading Kaggle Data")
     
     books_loaded = load_books_from_kaggle('data/Books.csv')
     if books_loaded == 0:
@@ -489,23 +475,15 @@ def main():
     
     ratings_loaded = load_ratings('data/Ratings.csv')
     if ratings_loaded == 0:
-        print("⚠️  Warning: No ratings loaded")
+        print(" Warning: No ratings loaded")
     
     # Step 3: Show statistics
-    print("\n📊 Step 3: Final Statistics")
+    print("\n Step 3: Final Statistics")
     get_table_counts()
     sample_books()
     
     # Step 4: Next steps
-    print("\n" + "=" * 60)
-    print("✅ INITIAL DATA LOAD COMPLETE!")
-    print("=" * 60)
-    print("\n📋 NEXT STEPS:")
-    print("   1. Run enrichment: python ingestion/enriching_books.py")
-    print("   2. Or enable Airflow DAG 'enrich_new_books'")
-    print("   3. Monitor enrichment progress in database")
-    print("\n💡 TIP: Run 'python ingestion/google_books.py diagnose' to check ISBN quality")
-    print("=" * 60)
+    print(" INITIAL DATA LOAD COMPLETE!")
     
     return 0
 

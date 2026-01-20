@@ -8,7 +8,7 @@ services:
     container_name: airflow-init
     environment:
       - AIRFLOW__CORE__EXECUTOR=LocalExecutor
-      - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql+psycopg2://${DB_USER:-terezasaskova}:${DB_PASSWORD:-}@book-recs-postgres:5432/${POSTGRES_DB_AIRFLOW:-airflow}
+      - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql+psycopg2://${DB_USER:-terezasaskova}:${DB_PASSWORD:-}@book-recs-postgres:5433/${POSTGRES_DB_AIRFLOW:-airflow}
       - AIRFLOW__CORE__FERNET_KEY=''
       - AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION=true
       - AIRFLOW__CORE__LOAD_EXAMPLES=false
@@ -40,7 +40,7 @@ services:
       - airflow-init
     environment:
       - AIRFLOW__CORE__EXECUTOR=LocalExecutor
-      - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql+psycopg2://${DB_USER:-terezasaskova}:${DB_PASSWORD:-}@book-recs-postgres:5432/${POSTGRES_DB_AIRFLOW:-airflow}
+      - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql+psycopg2://${DB_USER:-terezasaskova}:${DB_PASSWORD:-}@book-recs-postgres:5433/${POSTGRES_DB_AIRFLOW:-airflow}
       - AIRFLOW__WEBSERVER__WEB_SERVER_PORT=8080
       - AIRFLOW__WEBSERVER__WEB_SERVER_HOST=0.0.0.0
       - AIRFLOW__CORE__FERNET_KEY=''
@@ -90,7 +90,7 @@ services:
       - airflow-webserver
     environment:
       - AIRFLOW__CORE__EXECUTOR=LocalExecutor
-      - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql+psycopg2://${POSTGRES_USER:-terezasaskova}:${POSTGRES_PASSWORD:-terezasaskova}@book-recs-postgres:5432/${POSTGRES_DB_AIRFLOW:-airflow}
+      - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql+psycopg2://${POSTGRES_USER:-terezasaskova}:${POSTGRES_PASSWORD:-terezasaskova}@book-recs-postgres:5433/${POSTGRES_DB_AIRFLOW:-airflow}
       - AIRFLOW__CORE__FERNET_KEY=''
       - DB_HOST=book-recs-postgres
       - DB_PORT=5433

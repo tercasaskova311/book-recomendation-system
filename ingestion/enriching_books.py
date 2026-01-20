@@ -81,7 +81,7 @@ def update_book_with_google_data(isbn, google_data):
                 google_data['language'],
                 isbn
             ))
-            print(f"✅ Enriched: {google_data['title'][:50]}")
+            print(f"Enriched: {google_data['title'][:50]}")
         else:
             # Not found in Google Books - mark as enriched anyway to avoid retrying
             # Use Kaggle data as fallback
@@ -98,7 +98,7 @@ def update_book_with_google_data(isbn, google_data):
         conn.commit()
         
     except Exception as e:
-        print(f"❌ Database error for ISBN {isbn}: {e}")
+        print(f" Database error for ISBN {isbn}: {e}")
         conn.rollback()
     finally:
         cursor.close()
@@ -163,12 +163,10 @@ def enrich_books_batch(limit=DAILY_LIMIT):
     client = GoogleBooksClient(rate_limit_delay=0.1)
     
     if not client.test_connection():
-        print("❌ Google Books API connection test failed!")
+        print(" Google Books API connection test failed!")
         raise ConnectionError("Cannot connect to Google Books API")
     
-    print(f"✅ Google Books API connected")
-    print(f"\n🔄 Starting enrichment of {len(books)} books...")
-    print("=" * 60)
+    print(f" Google Books API connected")
     
     # Step 3: Process each book
     enriched_count = 0
@@ -193,23 +191,19 @@ def enrich_books_batch(limit=DAILY_LIMIT):
             not_found_count += 1
     
     # Step 4: Print final stats
-    print("\n" + "=" * 60)
-    print("✅ ENRICHMENT COMPLETE")
-    print("=" * 60)
+    print("  COMPLETE")
     print(f"   Processed: {len(books)}")
     print(f"   Successfully enriched: {enriched_count}")
     print(f"   Not found (using Kaggle): {not_found_count}")
     
     # Print API stats
-    print("\n📊 API USAGE STATISTICS")
-    print("=" * 60)
+    print("\n API USAGE STATISTICS")
     api_stats = client.get_stats()
     for key, value in api_stats.items():
         print(f"   {key}: {value}")
     
     # Print overall stats
-    print("\n📊 DATABASE STATISTICS (AFTER)")
-    print("=" * 60)
+    print("\n DATABASE STATISTICS (AFTER)")
     stats = get_enrichment_stats()
     for key, value in stats.items():
         print(f"   {key}: {value:,}")
@@ -225,10 +219,10 @@ def enrich_books_batch(limit=DAILY_LIMIT):
 def main():
     try:
         results = enrich_books_batch(limit=DAILY_LIMIT)
-        print(f"\n✅ Enrichment succeeded: {results}")
+        print(f"\n Enrichment succeeded: {results}")
         return 0
     except Exception as e:
-        print(f"\n❌ Enrichment failed: {e}")
+        print(f"\n Enrichment failed: {e}")
         import traceback
         traceback.print_exc()
         return 1
