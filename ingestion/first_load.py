@@ -333,6 +333,12 @@ def load_ratings(csv_path):
             (df_valid['Book-Rating'] >= 0) & 
             (df_valid['Book-Rating'] <= 10)
         ]
+        print(f"   Before deduplication: {len(df_valid):,} ratings")
+        df_valid = df_valid.drop_duplicates(
+            subset=['User-ID', 'isbn_clean'], 
+            keep='last'  # Keep most recent rating
+        )
+        print(f"   After deduplication: {len(df_valid):,} ratings")
         
         conn = get_connection()
         cursor = conn.cursor()
