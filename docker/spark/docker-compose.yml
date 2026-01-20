@@ -9,7 +9,7 @@ services:
     hostname: spark-master
     environment:
       - SPARK_MODE=master
-      - DB_HOST=host.docker.internal
+      - DB_HOST=book-recs-postgres  # ← FIXED: Use container name, not host.docker.internal
       - DB_PORT=5432
       - DB_NAME=${DB_NAME:-book_recommendations}
       - DB_USER=${DB_USER:-terezasaskova}
@@ -29,7 +29,12 @@ services:
       - spark_network
       - postgres_network
     user: root
-    command: /opt/spark/sbin/start-master.sh && tail -f /opt/spark/logs/spark*.out
+    # ← FIXED: Use shell to run both commands
+    command: >
+      bash -c "
+      /opt/spark/sbin/start-master.sh &&
+      tail -f /dev/null
+      "
 
   spark-worker:
     build:
@@ -40,17 +45,29 @@ services:
       - SPARK_MASTER=spark://spark-master:7077
       - SPARK_WORKER_CORES=2
       - SPARK_WORKER_MEMORY=4g
+      - DB_HOST=book-recs-postgres  # ← ADDED: Worker needs DB access too
+      - DB_PORT=5432
+      - DB_NAME=${DB_NAME:-book_recommendations}
+      - DB_USER=${DB_USER:-terezasaskova}
+      - DB_PASSWORD=${DB_PASSWORD:-}
     depends_on:
       - spark-master
     volumes:
       - ../../spark:/opt/project/spark:rw
       - ../../common:/opt/project/common:rw
       - ../../delta:/opt/project/delta:rw
+      - ../../config.py:/opt/project/config.py:ro  # ← ADDED
+      - ../../.env.development:/opt/project/.env.development:ro  # ← ADDED
     networks:
       - spark_network
       - postgres_network
-
-    command: /opt/spark/sbin/start-worker.sh spark://spark-master:7077 && tail -f /opt/spark/logs/spark*.out
+    user: root  # ← ADDED: Match master
+    # ← FIXED: Use shell to run both commands
+    command: >
+      bash -c "
+      /opt/spark/sbin/start-worker.sh spark://spark-master:7077 &&
+      tail -f /dev/null
+      "
 
 volumes:
   spark_data:
