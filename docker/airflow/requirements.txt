@@ -1,12 +1,16 @@
-apache-airflow-providers-apache-spark
-pyspark
-psycopg2-binary
+# Airflow providers
+apache-airflow-providers-apache-spark==4.1.3
+apache-airflow-providers-postgres==5.5.1
 
-delta-spark
-apache-airflow-providers-docker
-PyYAML
-python-dotenv
+# Spark (for operators, not jobs)
+pyspark==3.5.0
+delta-spark==3.0.0
 
-requests
-tqdm
-sentence-transformers
+# Database
+psycopg2-binary==2.9.9
+
+# Utils
+python-dotenv==1.0.0
+PyYAML==6.0.1
+requests==2.31.0
+

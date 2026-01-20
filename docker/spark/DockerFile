@@ -2,18 +2,23 @@ FROM bitnamilegacy/spark:3.5.6
 
 USER root
 
-# Install build dependencies for C extensions
+# Install system dependencies
 RUN apt-get update && \
     apt-get install -y gcc python3-dev build-essential libffi-dev libssl-dev && \
     apt-get clean && rm -rf /var/lib/apt/lists/*
 
-# Copy requirements
+# Install Python packages
 COPY docker/spark/requirements.txt /tmp/requirements.txt
-
-# Install Python packages from wheels / PyPI
 RUN pip3 install --no-cache-dir -r /tmp/requirements.txt
 
-# Set environment
+# Pre-download sentence-transformers model (happens once during build)
+RUN python3 -c "from sentence_transformers import SentenceTransformer; SentenceTransformer('all-MiniLM-L6-v2')"
+
+# Set environment variables for model cache location
+ENV SENTENCE_TRANSFORMERS_HOME=/root/.cache/torch/sentence_transformers
+ENV TRANSFORMERS_CACHE=/root/.cache/huggingface
+
+# Spark environment
 ENV PYSPARK_PYTHON=python3
 ENV PYSPARK_DRIVER_PYTHON=python3
 ENV PYTHONPATH=/opt/project:$PYTHONPATH

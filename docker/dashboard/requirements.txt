@@ -1,12 +1,14 @@
-streamlit
+# UI
+streamlit==1.28.0
 
-delta-spark
-pyspark          
+# Minimal Spark (just for reading Delta)
+pyspark==3.5.0
+delta-spark==3.0.0
 
-psycopg2-binary
-pandas
-numpy
-python-dotenv
-requests
+# Database
+psycopg2-binary==2.9.9
+pandas==2.1.0
 
+# Utils
+python-dotenv==1.0.0
 

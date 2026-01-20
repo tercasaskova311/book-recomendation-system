@@ -1,18 +1,19 @@
-# Delta Lake
-delta-spark
+# Spark & Delta
+pyspark==3.5.0
+delta-spark==3.0.0
+
+# ML (the slow part!)
+sentence-transformers==2.2.2
+torch==2.1.0  # Explicit version for reproducibility
 
 # Database
-psycopg2-binary
+psycopg2-binary==2.9.9
 
-# Data Processing
-pandas
-numpy
+# Data processing
+pandas==2.1.0
+numpy==1.24.0
 
-# Utilities
-python-dotenv
-requests
-
-pyarrow
-
-sentence-transformers
-tqdm
+# Utils
+python-dotenv==1.0.0
+requests==2.31.0
+tqdm==4.66.0

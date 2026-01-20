@@ -25,3 +25,9 @@ colorlog
 
 delta-spark
 
+pyarrow
+requests
+
+
+sentence-transformers==3.0.1
+transformers==4.41.2

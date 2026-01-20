@@ -1,35 +1,14 @@
+# docker/airflow/Dockerfile
+FROM apache/airflow:2.9.0-python3 as builder
+
+USER root
+RUN apt-get update && apt-get install -y gcc python3-dev
+
+USER airflow
+COPY requirements.txt /tmp/
+RUN pip install --user --no-cache-dir -r /tmp/requirements.txt
+
+# Final stage
 FROM apache/airflow:2.9.0-python3
-
-USER root
-
-# Installa Java and all packages
-RUN apt-get update && \
-    apt-get install -y openjdk-17-jdk curl ca-certificates unzip git wget ffmpeg && \
-    apt-get clean && rm -rf /var/lib/apt/lists/*
-
-# Install Spark 3.5.0
-RUN curl -fLo /tmp/spark.tgz \
-    https://archive.apache.org/dist/spark/spark-3.5.0/spark-3.5.0-bin-hadoop3.tgz \
- && tar -xzf /tmp/spark.tgz -C /opt \
- && rm /tmp/spark.tgz \
- && ln -s /opt/spark-3.5.0-bin-hadoop3 /opt/spark
-
-
-# Variabili ambiente
-ENV JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64
-ENV SPARK_HOME=/opt/spark
-ENV PATH=$PATH:$SPARK_HOME/bin
-ENV PYSPARK_PYTHON=python
-
-USER airflow
-
-# Install the Python dependencies
-RUN pip install --no-cache-dir --timeout=1000 --retries=5 -r /requirements.txt
-
-
-USER root
-
-RUN mkdir -p /opt/airflow/config && \
-    chown -R airflow: /opt/airflow/config
-
-USER airflow
+COPY --from=builder /home/airflow/.local /home/airflow/.local
+ENV PATH=/home/airflow/.local/bin:$PATH
