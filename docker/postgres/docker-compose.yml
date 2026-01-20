@@ -4,6 +4,7 @@ services:
   postgres:
     image: postgres:15
     container_name: book-recs-postgres
+    command: -p 5433 
     environment:
       POSTGRES_DB: ${DB_NAME:-book_recommendations}
       POSTGRES_USER: ${DB_USER:-terezasaskova}
