@@ -47,13 +47,11 @@ services:
       - AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION=true
       - AIRFLOW__CORE__LOAD_EXAMPLES=false
       - SPARK_MASTER=spark://spark-master:7077
-      # DB for DAGs (book_recommendations database)
       - DB_HOST=book-recs-postgres
       - DB_PORT=5433
       - DB_NAME=${DB_NAME:-book_recommendations}
       - DB_USER=${DB_USER:-terezasaskova}
       - DB_PASSWORD=${DB_PASSWORD:-terezasaskova}
-      # Google API
       - GOOGLE_API_KEY=${GOOGLE_API_KEY}
     ports:
       - "${AIRFLOW_PORT:-8082}:8080"
@@ -66,8 +64,8 @@ services:
       - ../../common:/opt/project/common
       - ../../config.py:/opt/project/config.py
       - ../../.env.development:/opt/project/.env.development
-      - airflow_logs:/opt/airflow/logs
       - ../../ingestion:/opt/project/ingestion
+      - airflow_logs:/opt/airflow/logs
     networks:
       - airflow_network
       - postgres_network
@@ -91,13 +89,13 @@ services:
       - AIRFLOW__CORE__EXECUTOR=LocalExecutor
       - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql+psycopg2://${DB_USER:-terezasaskova}:${DB_PASSWORD:-terezasaskova}@book-recs-postgres:5433/${POSTGRES_DB_AIRFLOW:-airflow}
       - AIRFLOW__CORE__FERNET_KEY=''
+      - SPARK_MASTER=spark://spark-master:7077
       - DB_HOST=book-recs-postgres
       - DB_PORT=5433
       - DB_NAME=${DB_NAME:-book_recommendations}
       - DB_USER=${DB_USER:-terezasaskova}
       - DB_PASSWORD=${DB_PASSWORD:-terezasaskova}
       - GOOGLE_API_KEY=${GOOGLE_API_KEY}
-      - SPARK_MASTER=spark://spark-master:7077
     volumes:
       - ../../airflow/dags:/opt/airflow/dags
       - ../../airflow/config:/opt/airflow/config
@@ -105,9 +103,9 @@ services:
       - ../../common:/opt/project/common
       - ../../config.py:/opt/project/config.py
       - ../../.env.development:/opt/project/.env.development
-      - airflow_logs:/opt/airflow/logs
       - ../../ingestion:/opt/project/ingestion
       - ../../delta:/opt/project/delta
+      - airflow_logs:/opt/airflow/logs
     networks:
       - airflow_network
       - postgres_network

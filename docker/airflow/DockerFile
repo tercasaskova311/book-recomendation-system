@@ -2,25 +2,38 @@ FROM apache/airflow:2.9.0-python3.11
 
 USER root
 
-# Install Java
+# Install system dependencies
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends openjdk-17-jdk procps && \
-    apt-get clean && rm -rf /var/lib/apt/lists/*
+    apt-get install -y --no-install-recommends \
+        openjdk-17-jdk \
+        curl \
+        procps && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
 
-# Install Spark
+# Install Spark 3.5.0
 RUN curl -fsSL https://archive.apache.org/dist/spark/spark-3.5.0/spark-3.5.0-bin-hadoop3.tgz \
-    | tar -xz -C /opt/ && ln -s /opt/spark-3.5.0-bin-hadoop3 /opt/spark
+    | tar -xz -C /opt/ && \
+    ln -s /opt/spark-3.5.0-bin-hadoop3 /opt/spark
 
+# Set environment variables
 ENV JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64
 ENV SPARK_HOME=/opt/spark
 ENV PATH="${PATH}:${SPARK_HOME}/bin"
+ENV PYSPARK_PYTHON=python3
 
-RUN mkdir -p /opt/airflow/config && chown -R airflow:root /opt/airflow
+# Create config directory
+RUN mkdir -p /opt/airflow/config && \
+    chown -R airflow:root /opt/airflow
 
+# Switch to airflow user
 USER airflow
 
-# Install Python packages WITHOUT --user flag
-COPY docker/airflow/requirements.txt /tmp/requirements.txt
-RUN pip install --no-cache-dir -r /tmp/requirements.txt
+# Install Python packages
+RUN pip install --no-cache-dir \
+    apache-airflow-providers-apache-spark==4.1.3 \
+    apache-airflow-providers-postgres==5.5.1 \
+    psycopg2-binary==2.9.9 \
+    python-dotenv==1.0.0
 
 WORKDIR /opt/airflow
