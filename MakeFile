@@ -88,7 +88,6 @@ spark-up: build-spark
 	@echo "Waiting for Spark Master..."
 	@sleep 10
 	@echo "✓ Spark cluster started"
-	@echo "   Spark Master UI: http://localhost:8080"
 
 spark-down:
 	@echo "Stopping Spark cluster..."
@@ -157,17 +156,24 @@ load-data: postgres-up
 	@echo ""
 
 # ============ COMBINED COMMANDS ============
-up: postgres-up spark-up airflow-up dashboard-up
+up: postgres-up airflow-up dashboard-up
 	@echo ""
 	@echo "================================================"
 	@echo "✓ All services started successfully!"
 	@echo "================================================"
 	@echo "Access points:"
 	@echo "  - PostgreSQL:  localhost:5060 (internal: 5433)"
-	@echo "  - Spark UI:    http://localhost:8080"
 	@echo "  - Airflow UI:  http://localhost:$(AIRFLOW_PORT) (admin/admin)"
 	@echo "  - Dashboard:   http://localhost:$(DASHBOARD_PORT)"
 	@echo "================================================"
+	@echo ""
+	@echo "NOTE: Spark runs in LOCAL mode inside Airflow container"
+	@echo "      (No separate Spark cluster needed)"
+	@echo ""
+
+# Optional: Add command to start WITH Spark cluster (for future scaling)
+up-with-spark: postgres-up spark-up airflow-up dashboard-up
+	@echo "✓ All services started (including Spark cluster)"
 
 down: dashboard-down airflow-down spark-down postgres-down
 	@echo "✓ All services stopped"
@@ -214,7 +220,6 @@ init: build-all up
 	@echo "✓ FULL SYSTEM INIT COMPLETE!"
 	@echo "Access points:"
 	@echo "  - PostgreSQL:  localhost:5060 (internal: 5433)"
-	@echo "  - Spark UI:    http://localhost:8080"
 	@echo "  - Airflow UI:  http://localhost:$(AIRFLOW_PORT) (admin/admin)"
 	@echo "  - Dashboard:   http://localhost:$(DASHBOARD_PORT)"
 	@echo "================================================"

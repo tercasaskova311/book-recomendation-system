@@ -9,9 +9,6 @@ from config import POSTGRES_JDBC_JAR, SPARK_DRIVER_MEMORY, SPARK_EXECUTOR_MEMORY
 from delta import configure_spark_with_delta_pip
 
 
-def _in_spark_submit() -> bool:
-    return "PYSPARK_SUBMIT_ARGS" in os.environ
-
 def get_spark_session(
     app_name: Optional[str] = None,
     master: Optional[str] = None,
@@ -21,10 +18,8 @@ def get_spark_session(
     
     builder = SparkSession.builder.appName(app_name or "Book recs")
 
-    
-    # Set master (only if not using spark-submit)
-    if not _in_spark_submit():
-        builder = builder.master("local[*]")
+    # Always use local mode for single-machine setup
+    builder = builder.master(master or "local[*]")
     
     # Memory configuration
     builder = builder \
@@ -46,15 +41,26 @@ def get_spark_session(
     # Streaming (for future use)
     builder = builder.config("spark.streaming.stopGracefullyOnShutdown", "true")
     
-    # PostgreSQL JAR configuration
-    if POSTGRES_JDBC_JAR and os.path.exists(POSTGRES_JDBC_JAR):
-        builder = builder \
-            .config("spark.jars", POSTGRES_JDBC_JAR) \
-            .config("spark.driver.extraClassPath", POSTGRES_JDBC_JAR) \
-            .config("spark.executor.extraClassPath", POSTGRES_JDBC_JAR)
-        print(f" PostgreSQL JDBC JAR loaded: {POSTGRES_JDBC_JAR}")
-    else:
-        print(f"Warning: PostgreSQL JDBC JAR not found at: {POSTGRES_JDBC_JAR}")
+    # PostgreSQL JAR configuration - try multiple paths
+    jar_paths = [
+        POSTGRES_JDBC_JAR,
+        "/opt/spark/jars/postgresql-42.6.0.jar",
+        "/opt/project/jars/postgresql-42.6.0.jar"
+    ]
+    
+    jar_loaded = False
+    for jar_path in jar_paths:
+        if jar_path and os.path.exists(jar_path):
+            builder = builder \
+                .config("spark.jars", jar_path) \
+                .config("spark.driver.extraClassPath", jar_path) \
+                .config("spark.executor.extraClassPath", jar_path)
+            print(f"✓ PostgreSQL JDBC JAR loaded: {jar_path}")
+            jar_loaded = True
+            break
+    
+    if not jar_loaded:
+        print(f"⚠️  Warning: PostgreSQL JDBC JAR not found in any location")
     
     # Apply extra configurations
     if extra_conf:
@@ -73,14 +79,17 @@ def get_spark_session(
                 "org.apache.spark.sql.delta.catalog.DeltaCatalog"
             )
         spark = configure_spark_with_delta_pip(builder).getOrCreate()
-        print("Delta Lake enabled")
+        print("✓ Delta Lake enabled")
+    else:
+        spark = builder.getOrCreate()
 
     # Set log level
     spark.sparkContext.setLogLevel("WARN")
     
-    return spark
-
+    # Print session info
+    print(f"✓ Spark session created: {spark.sparkContext.master}")
     
+    return spark
 
 def create_spark() -> SparkSession:
     """Quick spark session with env defaults"""
