@@ -14,11 +14,13 @@ def _in_spark_submit() -> bool:
 
 def get_spark_session(
     app_name: Optional[str] = None,
+    master: Optional[str] = None,
     extra_conf: Optional[Dict[str, Any]] = None,
-    enable_delta: bool = False  # ← ADD THIS PARAMETER
+    enable_delta: bool = False 
 ) -> SparkSession:
     
     builder = SparkSession.builder.appName(app_name or "Book recs")
+
     
     # Set master (only if not using spark-submit)
     if not _in_spark_submit():

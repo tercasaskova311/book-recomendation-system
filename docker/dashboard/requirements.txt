@@ -1,6 +1,7 @@
 streamlit
 pandas
-python-dotenv
 psycopg2-binary
-delta-spark
-pyspark==4.1.1
+sqlalchemy
+tqdm
+requests
+python-dotenv

@@ -157,43 +157,18 @@ def select_top_n_per_user(hybrid_df, top_n=N_RECOMMENDATIONS):
         .select("user_id", "isbn", "hybrid_score", "als_score", "content_score", "rank", "generated_at")
     )
 
-# ============ SAVE TO DELTA ============
-def save_final_recommendations(df):
-    
-    df.write \
-        .format("delta") \
-        .mode("overwrite") \
-        .save(DELTA_FINAL_RECS)
-    
-    print(" final recs aved to DELTA")
 
-
-# ============ OPTIONAL: Save to PostgreSQL Cache ============
-def save_to_postgres_cache(df):
-    """
-    Optional: Write top-100 recommendations back to PostgreSQL
-    for even faster API serving (vs reading from Delta).
-    """
-    
-    # Prepare for PostgreSQL
-    pg_recs = df.select(
-        "user_id",
-        "isbn",
-        F.col("hybrid_score").alias("score"),
-        "rank",
-        "generated_at"
-    )
-    
-    # Write to PostgreSQL
-    pg_recs.write \
+# ============ : Save to PostgreSQL Cache ============
+def save_to_postgres(df):
+    (
+        df.write
         .jdbc(
             url=JDBC_URL,
             table="recommendations_cache",
             mode="overwrite",
             properties=JDBC_PROPERTIES
         )
-    
-    print("Saved to PostgreSQL!")
+    )
 
 
 # ============ MAIN PIPELINE ============
@@ -222,7 +197,7 @@ def main():
 
         final_recs = select_top_n_per_user(filtered, top_n=N_RECOMMENDATIONS)
 
-        save_final_recommendations(final_recs)
+        save_to_postgres(final_recs)
 
         print(" HYBRID RECOMMENDATION PIPELINE COMPLETE!")
 
