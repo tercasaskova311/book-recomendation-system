@@ -4,4 +4,6 @@ psycopg2-binary>=2.9.9
 python-dotenv>=1.0.0
 tqdm
 requests
-pandas 
+pandas
+pyspark>=3.5.0
+delta-spark>=3.0.0

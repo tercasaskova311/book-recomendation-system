@@ -30,7 +30,7 @@ RUN mkdir -p /opt/airflow/config && \
 USER airflow
 
 # Copy requirements file
-COPY requirements.txt /requirements.txt
+COPY docker/airflow/requirements.txt /requirements.txt
 
 # Install Python packages
 RUN pip install --no-cache-dir -r /requirements.txt

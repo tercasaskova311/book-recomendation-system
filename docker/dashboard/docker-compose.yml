@@ -25,14 +25,10 @@ services:
     networks:
       - dashboard_network
       - postgres_network
-      - spark_network
     working_dir: /app
     command: streamlit run app/dashboard.py --server.port=8501 --server.address=0.0.0.0
 
 networks:
-  spark_network:
-    name: spark_spark_network
-    external: true
   postgres_network:
     external: true
     name: postgres_postgres_network

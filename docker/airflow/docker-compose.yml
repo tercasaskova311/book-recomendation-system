@@ -22,7 +22,14 @@ services:
     command: >
       bash -c "
       echo 'Waiting for PostgreSQL...' &&
-      sleep 10 &&
+      for i in {1..30}; do
+        if pg_isready -h book-recs-postgres -p 5433 -U ${DB_USER:-terezasaskova}; then
+          echo 'PostgreSQL is ready!' &&
+          break
+        fi
+        echo 'PostgreSQL not ready, waiting... ('$$i'/30)' &&
+        sleep 2
+      done &&
       echo 'Initializing Airflow DB...' &&
       airflow db init &&
       airflow users create --username admin --password admin --firstname Admin --lastname User --role Admin --email admin@example.com || true &&
@@ -69,7 +76,6 @@ services:
     networks:
       - airflow_network
       - postgres_network
-      - spark_network
     command: >
       bash -c "
       echo 'Waiting for DB init...' &&
@@ -109,7 +115,6 @@ services:
     networks:
       - airflow_network
       - postgres_network
-      - spark_network
     command: scheduler
 
 volumes:
@@ -119,8 +124,5 @@ networks:
   postgres_network:
     external: true
     name: postgres_postgres_network
-  spark_network:
-    external: true
-    name: spark_spark_network
   airflow_network:
     driver: bridge
