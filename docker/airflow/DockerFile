@@ -19,20 +19,18 @@ RUN curl -fsSL https://archive.apache.org/dist/spark/spark-3.5.0/spark-3.5.0-bin
 # Set environment variables
 ENV JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64
 ENV SPARK_HOME=/opt/spark
-ENV PATH="${PATH}:${SPARK_HOME}/bin"
+ENV PATH="${PATH}:${SPARK_HOME}/bin:/home/airflow/.local/bin"
 ENV PYSPARK_PYTHON=python3
 
-# Create config directory
+# Create config directory with correct permissions
 RUN mkdir -p /opt/airflow/config && \
-    chown -R airflow:root /opt/airflow
+    chown -R airflow:root /opt/airflow/config
 
 # Switch to airflow user
 USER airflow
 
-# Copy requirements file
+# Copy and install requirements
 COPY docker/airflow/requirements.txt /requirements.txt
-
-# Install Python packages
 RUN pip install --no-cache-dir -r /requirements.txt
 
 WORKDIR /opt/airflow

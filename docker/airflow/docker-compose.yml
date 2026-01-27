@@ -1,11 +1,10 @@
-version: '3.8'
-
 services:
   airflow-init:
     build:
       context: ../..
       dockerfile: docker/airflow/Dockerfile
     container_name: airflow-init
+
     environment:
       - AIRFLOW__CORE__EXECUTOR=LocalExecutor
       - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql+psycopg2://${DB_USER:-terezasaskova}:${DB_PASSWORD:-terezasaskova}@book-recs-postgres:5433/${POSTGRES_DB_AIRFLOW:-airflow}
@@ -19,24 +18,21 @@ services:
     networks:
       - airflow_network
       - postgres_network
-    command: >
-      bash -c "
-      echo 'Waiting for PostgreSQL...' &&
-      for i in {1..30}; do
-        if pg_isready -h book-recs-postgres -p 5433 -U ${DB_USER:-terezasaskova}; then
-          echo 'PostgreSQL is ready!' &&
-          break
-        fi
-        echo 'PostgreSQL not ready, waiting... ('$$i'/30)' &&
-        sleep 2
-      done &&
-      echo 'Initializing Airflow DB...' &&
-      airflow db init &&
-      airflow users create --username admin --password admin --firstname Admin --lastname User --role Admin --email admin@example.com || true &&
-      echo 'DB initialized successfully'
-      "
     volumes:
       - airflow_logs:/opt/airflow/logs
+    entrypoint: /bin/bash
+    command:
+      - -c
+      - |
+        exec /entrypoint airflow version
+        airflow db migrate
+        airflow users create \
+          --username admin \
+          --password admin \
+          --firstname Admin \
+          --lastname User \
+          --role Admin \
+          --email admin@example.com || true
 
   airflow-webserver:
     build:
