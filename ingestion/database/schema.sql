@@ -12,7 +12,7 @@ DROP TABLE IF EXISTS books CASCADE;
 
 -- Books table (enriched with Google Books data)
 CREATE TABLE books (
-    isbn VARCHAR(13) PRIMARY KEY, --important
+    isbn VARCHAR(13) PRIMARY KEY,
     
     -- Kaggle original data (for reference)
     kaggle_title VARCHAR(500),
@@ -26,7 +26,7 @@ CREATE TABLE books (
     authors TEXT[],    -- Array of authors
     categories TEXT[], -- Array of genres/categories
     publisher VARCHAR(255),
-    published_date VARCHAR(50),  -- Can be year or full date
+    published_date VARCHAR(50),
     page_count INT,
     language VARCHAR(10),
     enriched BOOLEAN DEFAULT FALSE,
@@ -39,6 +39,7 @@ CREATE INDEX idx_books_title ON books(title);
 CREATE INDEX idx_books_authors ON books USING GIN(authors);
 CREATE INDEX idx_books_categories ON books USING GIN(categories);
 CREATE INDEX idx_books_language ON books(language);
+CREATE INDEX idx_books_enriched ON books(enriched) WHERE enriched = FALSE;
 
 -- Users table
 CREATE TABLE users (
@@ -105,14 +106,18 @@ CREATE INDEX idx_book_sim_a ON book_similarities(isbn_a, similarity_score DESC);
 CREATE INDEX idx_book_sim_b ON book_similarities(isbn_b, similarity_score DESC);
 
 -- Cached recommendations (hybrid scores)
+-- ⭐ FIXED: Added hybrid_score, als_score, content_score columns
 CREATE TABLE recommendations_cache (
     user_id INTEGER REFERENCES users(user_id) ON DELETE CASCADE,
     isbn VARCHAR(13) REFERENCES books(isbn) ON DELETE CASCADE,
-    score FLOAT8,  -- Hybrid score (collaborative + content)
-    rank INTEGER,  -- 1 = top recommendation
+    hybrid_score FLOAT8 NOT NULL,  -- ✅ Main hybrid score (α*ALS + (1-α)*content)
+    als_score FLOAT8,              -- ✅ Collaborative filtering score
+    content_score FLOAT8,          -- ✅ Content-based similarity score
+    rank INTEGER NOT NULL,         -- ✅ Ranking (1 = top recommendation)
     generated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (user_id, isbn)
 );
 
 CREATE INDEX idx_rec_user_rank ON recommendations_cache(user_id, rank);
-CREATE INDEX idx_rec_score ON recommendations_cache(score DESC);
+CREATE INDEX idx_rec_hybrid_score ON recommendations_cache(hybrid_score DESC);
+CREATE INDEX idx_rec_user_score ON recommendations_cache(user_id, hybrid_score DESC);

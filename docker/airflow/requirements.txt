@@ -1,4 +1,6 @@
-# Only install packages not in base apache/airflow:2.9.0-python3.11
 pyspark==3.5.0
 delta-spark==3.0.0
 tqdm
+psycopg2-binary==2.9.9
+pyyaml==6.0.1
+requests==2.31.0

@@ -21,10 +21,15 @@ ENV JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64
 ENV SPARK_HOME=/opt/spark
 ENV PATH="${PATH}:${SPARK_HOME}/bin:/home/airflow/.local/bin"
 ENV PYSPARK_PYTHON=python3
+ENV PYTHONPATH="/opt/airflow:/opt/airflow/dags:/opt/project:${PYTHONPATH}"
 
 # Create config directory with correct permissions
-RUN mkdir -p /opt/airflow/config && \
-    chown -R airflow:root /opt/airflow/config
+RUN mkdir -p /opt/airflow/config \
+             /opt/airflow/dags \
+             /opt/airflow/plugins \
+             /opt/airflow/logs \
+             /opt/project && \
+    chown -R airflow:root /opt/airflow /opt/project
 
 # Switch to airflow user
 USER airflow

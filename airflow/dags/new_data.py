@@ -3,13 +3,22 @@ from airflow.operators.python import PythonOperator
 from airflow.utils.dates import days_ago
 import yaml
 import sys
+import os
 
-sys.path.insert(0, '/opt/project')
+# Add project root to Python path
+project_root = '/opt/project'
+if project_root not in sys.path:
+    sys.path.insert(0, project_root)
+
 from ingestion.enriching_books import enrich_books_batch
 
-
-with open('/opt/airflow/config/pipeline_config.yaml') as f:
-    config = yaml.safe_load(f)
+config_path = '/opt/project/pipeline_config.yaml'
+try:
+    with open(config_path) as f:
+        config = yaml.safe_load(f)
+except FileNotFoundError:
+    print(f"WARNING: Config file not found at {config_path}, using defaults")
+    config = {'new_books_interval': '@daily'}
 
 with DAG(
     dag_id='enrich_new_books',

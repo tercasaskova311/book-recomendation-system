@@ -56,11 +56,17 @@ services:
       - DB_USER=${DB_USER:-terezasaskova}
       - DB_PASSWORD=${DB_PASSWORD:-terezasaskova}
       - GOOGLE_API_KEY=${GOOGLE_API_KEY}
+      - PYTHONPATH=/opt/airflow:/opt/airflow/dags:/opt/project
     ports:
       - "${AIRFLOW_PORT:-8082}:8080"
     volumes:
       - ../../airflow/dags:/opt/airflow/dags
       - ../../airflow/config:/opt/airflow/config
+      - ../../plugins:/opt/airflow/plugins
+      - airflow_logs:/opt/airflow/logs
+
+      - ../../pipeline_config.yaml:/opt/project/pipeline_config.yaml
+
       - ../../data:/opt/project/data
       - ../../spark:/opt/project/spark
       - ../../delta:/opt/project/delta
@@ -68,7 +74,6 @@ services:
       - ../../config.py:/opt/project/config.py
       - ../../.env.development:/opt/project/.env.development
       - ../../ingestion:/opt/project/ingestion
-      - airflow_logs:/opt/airflow/logs
     networks:
       - airflow_network
       - postgres_network
@@ -98,16 +103,21 @@ services:
       - DB_USER=${DB_USER:-terezasaskova}
       - DB_PASSWORD=${DB_PASSWORD:-terezasaskova}
       - GOOGLE_API_KEY=${GOOGLE_API_KEY}
+      - PYTHONPATH=/opt/airflow:/opt/airflow/dags:/opt/project
     volumes:
       - ../../airflow/dags:/opt/airflow/dags
       - ../../airflow/config:/opt/airflow/config
+      - ../../plugins:/opt/airflow/plugins
+      - airflow_logs:/opt/airflow/logs
+
+      - ../../pipeline_config.yaml:/opt/project/pipeline_config.yaml
+
       - ../../spark:/opt/project/spark
       - ../../common:/opt/project/common
       - ../../config.py:/opt/project/config.py
       - ../../.env.development:/opt/project/.env.development
       - ../../ingestion:/opt/project/ingestion
       - ../../delta:/opt/project/delta
-      - airflow_logs:/opt/airflow/logs
     networks:
       - airflow_network
       - postgres_network
