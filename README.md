@@ -64,7 +64,7 @@ Recommendation system built on spark, airflow and postgres, combining **collabor
 │              └──────────┬────────── ┘                           │
 │                         ↓                                       │
 │                  ┌─────────────┐                                │
-│                  │ Delta Lake  │                                │
+│                  │ Postgres    │                                │
 │                  │ - Features  │                                │
 │                  │ - Similarities                               │
 │                  │ - Final Recs│                                │
