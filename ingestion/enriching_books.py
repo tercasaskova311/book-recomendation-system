@@ -42,7 +42,7 @@ def get_unenriched_books(limit=DAILY_LIMIT):
     cursor.close()
     conn.close()
     
-    print(f"📚 Found {len(books)} unenriched books with valid ISBNs")
+    print(f" Found {len(books)} unenriched books with valid ISBNs")
     return books
 
 def update_book_with_google_data(isbn, google_data):
@@ -142,7 +142,7 @@ def enrich_books_batch(limit=DAILY_LIMIT):
     
     # Print initial stats
     print("\n" + "=" * 60)
-    print("📊 ENRICHMENT STATISTICS (BEFORE)")
+    print("ENRICHMENT STATISTICS (BEFORE)")
     print("=" * 60)
     stats = get_enrichment_stats()
     for key, value in stats.items():
@@ -160,7 +160,7 @@ def enrich_books_batch(limit=DAILY_LIMIT):
         }
     
     # Step 2: Initialize Google Books API client
-    client = GoogleBooksClient(rate_limit_delay=0.1)
+    client = GoogleBooksClient()
     
     if not client.test_connection():
         print(" Google Books API connection test failed!")
@@ -195,12 +195,6 @@ def enrich_books_batch(limit=DAILY_LIMIT):
     print(f"   Processed: {len(books)}")
     print(f"   Successfully enriched: {enriched_count}")
     print(f"   Not found (using Kaggle): {not_found_count}")
-    
-    # Print API stats
-    print("\n API USAGE STATISTICS")
-    api_stats = client.get_stats()
-    for key, value in api_stats.items():
-        print(f"   {key}: {value}")
     
     # Print overall stats
     print("\n DATABASE STATISTICS (AFTER)")

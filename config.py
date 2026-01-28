@@ -6,7 +6,7 @@ DB_HOST = os.getenv('DB_HOST', 'localhost')
 DB_PORT = os.getenv('DB_PORT', '5433')
 DB_NAME = os.getenv('DB_NAME', 'book_recommendations')
 DB_USER = os.getenv('DB_USER', 'terezasaskova')
-DB_PASSWORD = os.getenv('DB_PASSWORD', '')
+DB_PASSWORD = os.getenv('DB_PASSWORD', 'terezasaskova')
 
 # Database connection dictionary (for psycopg2)
 DB_CONFIG = {

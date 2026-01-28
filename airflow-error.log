@@ -1,13 +1,0 @@
-time="2026-01-21T00:08:43+01:00" level=warning msg="The \"GOOGLE_API_KEY\" variable is not set. Defaulting to a blank string."
-time="2026-01-21T00:08:43+01:00" level=warning msg="The \"GOOGLE_API_KEY\" variable is not set. Defaulting to a blank string."
-time="2026-01-21T00:08:43+01:00" level=warning msg="/Users/terezasaskova/Desktop/book-recomendation-system/docker/airflow/docker-compose.yml: the attribute `version` is obsolete, it will be ignored, please remove it to avoid potential confusion"
- Container airflow-init  Created
-Attaching to airflow-init
-airflow-init  | ....................
-airflow-init  | ERROR! Maximum number of retries (20) reached.
-airflow-init  | 
-airflow-init  | Last check result:
-airflow-init  | $ airflow db check
-airflow-init  | /entrypoint: line 20: airflow: command not found
-airflow-init  | 
-[Kairflow-init exited with code 1

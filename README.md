@@ -95,6 +95,8 @@ git clone <repository-url>
 # Copy environment template
 cp .env.development.example .env.development
 
+#Create Google API KEY and enable Google Books
+
 # Edit with your settings (PostgreSQL credentials, Google API key)
 nano .env.development
 ```
@@ -109,22 +111,14 @@ make init
 # - Start PostgreSQL
 # - Initialize Airflow database
 # - Start all services
-```
-
-### 3. Load Initial Data
-```bash
-# Load Kaggle datasets into PostgreSQL
-python ingestion/load_data.py
-
-# Run enrichment (first 1K books)
-python ingestion/ingestion.py
+#- load kaggle data into DB
 ```
 
 ### 4. Output
 
 ```bash
 
-# Access Airflow UI: http://localhost:8080 (admin/admin) => Enable and trigger the 'recommendation' DAG
+# Access Airflow UI: http://localhost:8080 (admin/admin) => Enable and trigger the 'new_data' & 'recommendation' DAG
 # Dashboard UI: http://localhost:8501 => Enter a User ID to get personalized recommendations
 
 ```

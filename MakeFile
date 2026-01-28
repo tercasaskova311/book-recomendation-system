@@ -139,10 +139,10 @@ dashboard-logs:
 load-data: postgres-up
 	@echo ""
 	@echo "================================================"
-	@echo "📥 LOADING KAGGLE DATA INTO DATABASE"
+	@echo " LOADING KAGGLE DATA INTO DATABASE"
 	@echo "================================================"
 	@echo ""
-	@echo "⏳ This will:"
+	@echo " This will:"
 	@echo "   1. Create database schema"
 	@echo "   2. Load ~270K books from Kaggle"
 	@echo "   3. Load ~278K users"
@@ -152,7 +152,7 @@ load-data: postgres-up
 	@read -p "Press Enter to continue or Ctrl+C to cancel..."
 	@python3 ingestion/first_load.py
 	@echo ""
-	@echo "✅ Data loading complete!"
+	@echo " Data loading complete!"
 	@echo ""
 
 # ============ COMBINED COMMANDS ============
@@ -204,17 +204,17 @@ status:
 init: build-all up
 	@echo ""
 	@echo "================================================"
-	@echo "🚀 INITIALIZING DATABASE WITH KAGGLE DATA"
+	@echo " INITIALIZING DATABASE WITH KAGGLE DATA"
 	@echo "================================================"
-	@echo "⚠️  Resetting database schema..."
+	@echo "  Resetting database schema..."
 	@docker exec -i book-recs-postgres psql -U $(DB_USER) -d $(DB_NAME) -p 5433 -c "DROP SCHEMA public CASCADE; CREATE SCHEMA public;"
-	@echo "✅ Database schema reset complete"
-	@echo "📥 Loading initial data (books, users, ratings)..."
+	@echo " Database schema reset complete"
+	@echo " Loading initial data (books, users, ratings)..."
 	
 	# Run Python script INSIDE the dashboard container (which has network access)
 	@docker exec dashboard python /app/ingestion/first_load.py
 	
-	@echo "✅ Initial data load complete!"
+	@echo " Initial data load complete!"
 	@echo ""
 	@echo "================================================"
 	@echo "✓ FULL SYSTEM INIT COMPLETE!"
