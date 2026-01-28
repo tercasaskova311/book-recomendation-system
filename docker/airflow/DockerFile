@@ -16,6 +16,10 @@ RUN curl -fsSL https://archive.apache.org/dist/spark/spark-3.5.0/spark-3.5.0-bin
     | tar -xz -C /opt/ && \
     ln -s /opt/spark-3.5.0-bin-hadoop3 /opt/spark
 
+# In docker/airflow/Dockerfile, add after Spark installation:
+RUN curl -o /opt/spark/jars/postgresql-42.7.1.jar \
+    https://jdbc.postgresql.org/download/postgresql-42.7.1.jar
+    
 # Set environment variables
 ENV JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64
 ENV SPARK_HOME=/opt/spark

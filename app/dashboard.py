@@ -35,7 +35,14 @@ def main():
     st.set_page_config("Book Recommendation System", "📚", layout="wide")
     st.title("📚 Book Recommendation System")
 
-    user_id = st.number_input("User ID", min_value=1, value=276725)
+    # Query a valid user from database first
+    def get_random_user():
+        query = "SELECT user_id FROM users LIMIT 1"
+        result = query_db(query)
+        return result['user_id'].iloc[0] if not result.empty else 1
+
+    default_user = get_random_user()
+    user_id = st.number_input("User ID", min_value=1, value=default_user)
 
     if st.button("Get recommendations"):
         with st.spinner("Loading recommendations..."):

@@ -4,7 +4,7 @@ from airflow.utils.dates import days_ago
 import yaml
 
 # Load pipeline configuration
-with open('/opt/airflow/config/pipeline_config.yaml') as f:
+with open('/opt/project/pipeline_config.yaml') as f:
     config = yaml.safe_load(f)
 
 # Environment variables for scripts

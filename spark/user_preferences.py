@@ -70,7 +70,15 @@ def index_users_items(df):
     return data, user_map, item_map, model
 
 def train_als(data, spark):
-    spark.sparkContext.setCheckpointDir("/tmp/spark-checkpoints")
+    import shutil
+
+    checkpoint_dir = "/tmp/spark-checkpoints"
+    # Clean old checkpoints
+    if os.path.exists(checkpoint_dir):
+        shutil.rmtree(checkpoint_dir)
+    os.makedirs(checkpoint_dir, exist_ok=True)
+
+    spark.sparkContext.setCheckpointDir(checkpoint_dir)
 
     als = ALS(
         userCol="user_idx",

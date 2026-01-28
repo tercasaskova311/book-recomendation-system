@@ -24,7 +24,7 @@ services:
     command:
       - -c
       - |
-        exec /entrypoint airflow version
+        airflow version
         airflow db migrate
         airflow users create \
           --username admin \
@@ -65,7 +65,7 @@ services:
       - ../../plugins:/opt/airflow/plugins
       - airflow_logs:/opt/airflow/logs
 
-      - ../../pipeline_config.yaml:/opt/project/pipeline_config.yaml
+      - ../../airflow/config/pipeline_config.yaml:/opt/project/pipeline_config.yaml:ro
 
       - ../../data:/opt/project/data
       - ../../spark:/opt/project/spark
@@ -110,7 +110,7 @@ services:
       - ../../plugins:/opt/airflow/plugins
       - airflow_logs:/opt/airflow/logs
 
-      - ../../pipeline_config.yaml:/opt/project/pipeline_config.yaml
+      - ../../airflow/config/pipeline_config.yaml:/opt/project/pipeline_config.yaml:ro
 
       - ../../spark:/opt/project/spark
       - ../../common:/opt/project/common
